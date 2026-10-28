@@ -23,6 +23,9 @@ export function assignTopic(
   for (const def of defs) {
     let hits = 0
     for (const pattern of def.patterns) {
+      // an empty pattern matches everything and would hijack the topic
+      if (!pattern)
+        continue
       if (haystack.toLowerCase().includes(pattern.toLowerCase()))
         hits++
     }

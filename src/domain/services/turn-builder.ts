@@ -1,6 +1,6 @@
 import type { EpochMs, NodeId } from '../model/identity'
-import type { MessageNode } from '../model/message-node'
-import type { Part, WebResult } from '../model/part'
+import type { MessageNode, Role } from '../model/message-node'
+import type { Part } from '../model/part'
 import type { Trajectory } from '../model/trajectory'
 
 /**
@@ -21,8 +21,6 @@ export interface Turn {
   readonly variants: readonly VariantRef[]
   /** Real input -> first output latency; null without an output or on clock rollback */
   readonly totalLatencyMs: number | null
-  /** All search results within the turn, path order (first-priority citation window) */
-  readonly searchWindow: readonly WebResult[]
   /** Approx text volume, for lazy-render placeholders */
   readonly approxChars: number
 }
@@ -32,21 +30,34 @@ export interface VariantRef {
   readonly siblingOf: NodeId
 }
 
-/** Walk "last child" from a node down to a leaf (ancestors are the caller's job) */
-export function activePathFrom(t: Trajectory, start: NodeId): readonly NodeId[] {
+/** Walk "last child at every fork" from a node down to a leaf (cycle-safe) */
+export function walkLastChild(nodes: ReadonlyMap<NodeId, MessageNode>, start: NodeId): readonly NodeId[] {
   const path: NodeId[] = []
   const seen = new Set<NodeId>()
-  let current: MessageNode | undefined = t.nodes.get(start)
+  let current: MessageNode | undefined = nodes.get(start)
   while (current && !seen.has(current.id)) {
     seen.add(current.id)
     path.push(current.id)
     const children = current.childIds
-      .map(id => t.nodes.get(id))
+      .map(id => nodes.get(id))
       .filter((n): n is MessageNode => !!n)
       .sort((a, b) => a.at - b.at)
     current = children[children.length - 1]
   }
   return path
+}
+
+/** Default read path of a bare node map: last child at every fork, top-level forks included */
+export function defaultActivePath(nodes: ReadonlyMap<NodeId, MessageNode>): readonly NodeId[] {
+  const roots = [...nodes.values()]
+    .filter(n => n.parentId === null)
+    .sort((a, b) => a.at - b.at)
+  return roots.length ? walkLastChild(nodes, roots[roots.length - 1].id) : []
+}
+
+/** Same walk starting from a node inside an existing trajectory */
+export function activePathFrom(t: Trajectory, start: NodeId): readonly NodeId[] {
+  return walkLastChild(t.nodes, start)
 }
 
 /**
@@ -120,7 +131,6 @@ export function buildTurns(t: Trajectory, path?: readonly NodeId[]): readonly Tu
   let inputNodeIds: NodeId[] = []
   let outputNodeIds: NodeId[] = []
   let variants: VariantRef[] = []
-  let searchWindow: WebResult[] = []
   let approxChars = 0
   let firstInputAt: EpochMs | null = null
   let firstOutputAt: EpochMs | null = null
@@ -133,7 +143,6 @@ export function buildTurns(t: Trajectory, path?: readonly NodeId[]): readonly Tu
       inputNodeIds,
       outputNodeIds,
       variants,
-      searchWindow,
       approxChars,
       totalLatencyMs:
         firstInputAt !== null && firstOutputAt !== null && firstOutputAt >= firstInputAt
@@ -143,20 +152,21 @@ export function buildTurns(t: Trajectory, path?: readonly NodeId[]): readonly Tu
     inputNodeIds = []
     outputNodeIds = []
     variants = []
-    searchWindow = []
     approxChars = 0
     firstInputAt = null
     firstOutputAt = null
   }
+
+  let previousRole: Role | null = null
 
   for (const nodeId of activePath) {
     const node = t.nodes.get(nodeId)
     if (!node)
       continue
 
-    // a user node opens a new turn; variants belong to the turn they sit in,
-    // so flush first — otherwise they land in the previous turn
-    if (node.role === 'user')
+    // a user turn opens when the previous path node is not a user node;
+    // consecutive user nodes merge into the same turn's inputs (rewrite chain)
+    if (node.role === 'user' && previousRole !== 'user')
       flush()
 
     for (const siblingId of orderedSiblingsOf(t, nodeId)) {
@@ -166,7 +176,8 @@ export function buildTurns(t: Trajectory, path?: readonly NodeId[]): readonly Tu
 
     if (node.role === 'user') {
       inputNodeIds.push(node.id)
-      firstInputAt = node.at
+      if (firstInputAt === null)
+        firstInputAt = node.at
     }
     else {
       if (!inputNodeIds.length) {
@@ -181,10 +192,7 @@ export function buildTurns(t: Trajectory, path?: readonly NodeId[]): readonly Tu
     }
     approxChars += partChars(node.parts)
 
-    for (const part of node.parts) {
-      if (part.kind === 'search')
-        searchWindow.push(...part.results)
-    }
+    previousRole = node.role
   }
   flush()
 

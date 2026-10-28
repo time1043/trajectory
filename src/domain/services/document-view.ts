@@ -76,7 +76,8 @@ export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): Docu
     const latencyMs = node.role === 'assistant' && turnStartAt !== null && node.at >= turnStartAt
       ? node.at - turnStartAt
       : null
-    blocks.push({ node, variant, latencyMs, chainIndex })
+    // rewrite depth is a user-node property; assistant blocks reset it
+    blocks.push({ node, variant, latencyMs, chainIndex: node.role === 'user' ? chainIndex : 0 })
   }
 
   return { blocks, references, citationWindows }

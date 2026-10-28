@@ -1,5 +1,4 @@
 import type { NodeId } from './identity'
-import type { MessageNode } from './message-node'
 import type { Trajectory } from './trajectory'
 import { hasForeignParts } from './trajectory'
 
@@ -69,24 +68,3 @@ export function checkInvariants(t: Trajectory): readonly string[] {
   return violations
 }
 
-/** Default active path: last child at every fork, top-level forks included */
-export function defaultActivePath(nodes: ReadonlyMap<NodeId, MessageNode>): readonly NodeId[] {
-  const roots = [...nodes.values()]
-    .filter(n => n.parentId === null)
-    .sort((a, b) => a.at - b.at)
-  if (!roots.length)
-    return []
-  const path: NodeId[] = []
-  let current = roots[roots.length - 1]
-  const seen = new Set<NodeId>()
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id)
-    path.push(current.id)
-    const children = current.childIds
-      .map(id => nodes.get(id))
-      .filter((n): n is MessageNode => !!n)
-      .sort((a, b) => a.at - b.at)
-    current = children[children.length - 1]
-  }
-  return path
-}
