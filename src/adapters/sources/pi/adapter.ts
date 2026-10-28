@@ -1,9 +1,7 @@
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { SourceAdapter } from '@/domain/ports/source-adapter'
 import type { Part, ToolCallPayload } from '@/domain/model/part'
-import type { Trajectory } from '@/domain/model/trajectory'
 import {
-  buildTrajectory,
   fetchTexts,
   parseJsonl,
   toolPart,
@@ -11,9 +9,10 @@ import {
   truncatedOutput,
   truncatedReasoning,
   truncatedText,
-  titleFromPrompt,
   type NodeDraft,
   type SourceBuild,
+  finishSession,
+  uuidFromPath,
 } from '../local/common'
 
 const SESSION_FILE = /\/sessions\/[^/]+\/\d{4}-\d{2}-\d{2}T[\d-]+Z_[0-9a-f-]+\.jsonl$/
@@ -28,6 +27,9 @@ interface PiLine {
     model?: string
     provider?: string
     stopReason?: string
+    toolCallId?: string
+    toolName?: string
+    isError?: boolean
   }
 }
 
@@ -50,9 +52,8 @@ export const piAdapter: SourceAdapter = {
 
     for (const [filePath, text] of texts) {
       const lines = parseJsonl<PiLine>(text)
-      const rawId = filePath.match(/([0-9a-f-]{36})\.jsonl$/)?.[1] ?? filePath
+      const rawId = uuidFromPath(filePath)
       const drafts: NodeDraft[] = []
-      let title = ''
       let firstPrompt = ''
       let startedAt = Number.POSITIVE_INFINITY
       let updatedAt = 0
@@ -102,7 +103,7 @@ export const piAdapter: SourceAdapter = {
 
         if (role === 'toolResult') {
           // merge into the tool call that produced it
-          const callId = (message as Record<string, unknown>).toolCallId
+          const callId = message.toolCallId
           const pending = typeof callId === 'string' ? pendingResults.get(callId) : undefined
           if (pending) {
             const outputs: string[] = []
@@ -115,7 +116,7 @@ export const piAdapter: SourceAdapter = {
               for (const image of images)
                 target.parts.push(image)
             }
-            if ((message as Record<string, unknown>).isError === true)
+            if (message.isError === true)
               pending.error = pending.error ?? 'error'
           }
           continue
@@ -124,18 +125,9 @@ export const piAdapter: SourceAdapter = {
         // system prompts: long boilerplate, not dialogue
       }
 
-      if (!drafts.length)
-        continue
-      title = titleFromPrompt(firstPrompt) || title
-      const trajectory: Trajectory = buildTrajectory({
-        sourceId: 'pi',
-        rawId,
-        title,
-        startedAt: startedAt === Number.POSITIVE_INFINITY ? updatedAt : startedAt,
-        updatedAt,
-        drafts,
-      })
-      build.trajectories.push(trajectory)
+      const trajectory = finishSession({ sourceId: 'pi', rawId, drafts, startedAt, updatedAt, firstPrompt })
+      if (trajectory)
+        build.trajectories.push(trajectory)
     }
 
     return {

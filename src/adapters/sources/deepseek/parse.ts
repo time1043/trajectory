@@ -1,7 +1,7 @@
 import { trajectoryId } from '@/domain/model/identity'
 import type { MessageNode } from '@/domain/model/message-node'
 import type { Part, WebResult } from '@/domain/model/part'
-import { defaultActivePath } from '@/domain/model/invariants'
+import { defaultActivePath } from '@/domain/services/turn-builder'
 import type { PersonaProfile, ParsedSource, Trajectory } from '@/domain/model/trajectory'
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { RawConversation, RawFragment, RawUser } from './types'
@@ -65,14 +65,23 @@ function safeParse(json: string): { name?: string } | undefined {
   }
 }
 
+function safeParseUser(json: string): RawUser | undefined {
+  try {
+    return JSON.parse(json) as RawUser
+  }
+  catch {
+    return undefined
+  }
+}
+
 function buildProfile(raw: RawUser | undefined): PersonaProfile | null {
   if (!raw)
     return null
   const oauthName = raw.oauth_profiles
-    .map(p => safeParse(p.profile_json))
+    ?.map(p => safeParse(p.profile_json))
     .find(profile => !!profile?.name)?.name as string | undefined
   return {
-    displayName: oauthName ?? raw.user_id.slice(0, 8),
+    displayName: oauthName ?? (raw.user_id ? raw.user_id.slice(0, 8) : 'unknown'),
     identifiers: [
       ...(raw.email ? [maskEmail(raw.email)] : []),
       ...(raw.mobile?.mobile_number ? [maskPhone(raw.mobile.mobile_number)] : []),
@@ -90,7 +99,7 @@ export function parseDeepseek(manifest: SourceManifest, files: Map<string, Array
   const userPath = manifest.files.find(f => f.path.endsWith(USER_FILE))?.path
   const userRaw = userPath ? files.get(userPath) : undefined
   const profile = buildProfile(
-    userRaw ? JSON.parse(new TextDecoder().decode(userRaw)) as RawUser : undefined,
+    userRaw ? safeParseUser(new TextDecoder().decode(userRaw)) : undefined,
   )
 
   const unknownPartCounts: Record<string, number> = {}

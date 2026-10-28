@@ -1,4 +1,5 @@
 import type { MessageNode, Role } from '@/domain/model/message-node'
+import type { NodeId } from '@/domain/model/identity'
 import type { Part, ToolCallPayload } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
 import { trajectoryId } from '@/domain/model/identity'
@@ -51,11 +52,15 @@ export function toolTitleFromInput(input: unknown): string | undefined {
   if (!input || typeof input !== 'object')
     return undefined
   const record = input as Record<string, unknown>
-  const keys = ['command', 'description', 'title', 'file_path', 'path', 'pattern', 'query', 'url', 'name']
+  const keys = ['command', 'cmd', 'description', 'title', 'file_path', 'path', 'pattern', 'query', 'url', 'name']
   for (const key of keys) {
     const value = record[key]
-    if (typeof value === 'string' && value.trim()) {
-      const single = value.replace(/\s+/g, ' ').trim()
+    // codex exec_command carries argv arrays — join them into a readable line
+    const candidate = Array.isArray(value)
+      ? value.filter(v => typeof v === 'string').join(' ')
+      : value
+    if (typeof candidate === 'string' && candidate.trim()) {
+      const single = candidate.replace(/\s+/g, ' ').trim()
       return single.length > 60 ? `${single.slice(0, 60)}…` : single
     }
   }
@@ -73,18 +78,22 @@ export interface NodeDraft {
 /** Assemble drafts into the flat node map, parent-linked in insertion order */
 export function toNodes(drafts: readonly NodeDraft[]): Map<string, MessageNode> {
   const nodes = new Map<string, MessageNode>()
-  let previous: string | null = null
+  let previousId: string | null = null
+  let previousChildIds: NodeId[] | null = null
   for (const draft of drafts) {
+    const childIds: NodeId[] = []
     nodes.set(draft.id, {
       id: draft.id,
-      parentId: previous,
-      childIds: [],
+      parentId: previousId,
+      childIds,
       role: draft.role,
       model: draft.model ?? null,
       at: draft.at,
       parts: draft.parts,
     })
-    previous = draft.id
+    previousChildIds?.push(draft.id)
+    previousId = draft.id
+    previousChildIds = childIds
   }
   return nodes
 }
@@ -106,6 +115,28 @@ export function buildTrajectory(input: {
     nodes: toNodes(input.drafts),
     activePath: input.drafts.map(d => d.id),
   }
+}
+
+/** Shared tail for file-based adapters: explicit title first, prompt fallback, time fallbacks */
+export function finishSession(input: {
+  sourceId: string
+  rawId: string
+  drafts: readonly NodeDraft[]
+  startedAt: number
+  updatedAt: number
+  title?: string
+  firstPrompt?: string
+}): Trajectory | null {
+  if (!input.drafts.length)
+    return null
+  const startedAt = input.startedAt === Number.POSITIVE_INFINITY ? input.updatedAt : input.startedAt
+  const title = input.title || titleFromPrompt(input.firstPrompt ?? '') || ''
+  return buildTrajectory({ ...input, title, startedAt })
+}
+
+/** Extract a session uuid from a jsonl path, falling back to the full path */
+export function uuidFromPath(path: string): string {
+  return path.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/)?.[1] ?? path
 }
 
 export interface SourceBuild {

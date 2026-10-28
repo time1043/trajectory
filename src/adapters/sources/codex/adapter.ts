@@ -1,9 +1,7 @@
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { SourceAdapter } from '@/domain/ports/source-adapter'
 import type { ToolCallPayload } from '@/domain/model/part'
-import type { Trajectory } from '@/domain/model/trajectory'
 import {
-  buildTrajectory,
   fetchTexts,
   parseJsonl,
   toolPart,
@@ -11,9 +9,10 @@ import {
   truncatedOutput,
   truncatedReasoning,
   truncatedText,
-  titleFromPrompt,
   type NodeDraft,
   type SourceBuild,
+  finishSession,
+  uuidFromPath,
 } from '../local/common'
 
 const SESSION_FILE = /\/sessions\/\d{4}\/\d{2}\/\d{2}\/rollout-[^/]+\.jsonl$/
@@ -44,10 +43,8 @@ export const codexAdapter: SourceAdapter = {
 
     for (const [filePath, text] of texts) {
       const lines = parseJsonl<CodexLine>(text)
-      const rawId = filePath.match(/rollout-[^/]*?([0-9a-f-]{36})\.jsonl$/)?.[1]
-        ?? filePath
+      const rawId = uuidFromPath(filePath)
       const drafts: NodeDraft[] = []
-      let title = ''
       let firstPrompt = ''
       let model: string | null = null
       let startedAt = Number.POSITIVE_INFINITY
@@ -92,6 +89,9 @@ export const codexAdapter: SourceAdapter = {
           const role = payload.role
           const text = contentText(payload.content)
           if (role === 'user') {
+            // the turn boundary resets regardless of filtering: a dropped
+            // environment wrapper still starts a new user turn
+            lastAssistant = null
             // environment/instruction wrappers and project instruction dumps are injections, not the user's voice
             const real = text.filter(t => !/^<(environment_context|user_instructions|permissions)/.test(t.trim()) && !/^# AGENTS\.md/.test(t.trim()))
             if (!real.length)
@@ -100,7 +100,6 @@ export const codexAdapter: SourceAdapter = {
             if (!firstPrompt)
               firstPrompt = joined
             drafts.push({ id: `${rawId}:u${drafts.length}`, at, role: 'user', parts: [truncatedText(joined)] })
-            lastAssistant = null
           }
           else if (role === 'assistant') {
             if (!text.join('').trim())
@@ -162,18 +161,9 @@ export const codexAdapter: SourceAdapter = {
         build.unknownPartCounts[String(kind)] = (build.unknownPartCounts[String(kind)] ?? 0) + 1
       }
 
-      if (!drafts.length)
-        continue
-      title = titleFromPrompt(firstPrompt) || title
-      const trajectory: Trajectory = buildTrajectory({
-        sourceId: 'codex',
-        rawId,
-        title,
-        startedAt: startedAt === Number.POSITIVE_INFINITY ? updatedAt : startedAt,
-        updatedAt,
-        drafts,
-      })
-      build.trajectories.push(trajectory)
+      const trajectory = finishSession({ sourceId: 'codex', rawId, drafts, startedAt, updatedAt, firstPrompt })
+      if (trajectory)
+        build.trajectories.push(trajectory)
     }
 
     return {

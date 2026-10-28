@@ -1,9 +1,7 @@
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { SourceAdapter } from '@/domain/ports/source-adapter'
 import type { Part, ToolCallPayload } from '@/domain/model/part'
-import type { Trajectory } from '@/domain/model/trajectory'
 import {
-  buildTrajectory,
   fetchTexts,
   parseJsonl,
   toolPart,
@@ -11,9 +9,10 @@ import {
   truncatedOutput,
   truncatedReasoning,
   truncatedText,
-  titleFromPrompt,
   type NodeDraft,
   type SourceBuild,
+  finishSession,
+  uuidFromPath,
 } from '../local/common'
 
 // only session files directly under projects/<slug>/ — the sibling <uuid>/
@@ -53,9 +52,9 @@ export const claudeAdapter: SourceAdapter = {
 
     for (const [filePath, text] of texts) {
       const lines = parseJsonl<ClaudeLine>(text)
-      const rawId = filePath.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/)?.[1] ?? filePath
+      const rawId = uuidFromPath(filePath)
       const drafts: NodeDraft[] = []
-      let title = ''
+      let aiTitle = ''
       let firstPrompt = ''
       let startedAt = Number.POSITIVE_INFINITY
       let updatedAt = 0
@@ -71,8 +70,8 @@ export const claudeAdapter: SourceAdapter = {
         }
 
         if (line.type === 'ai-title') {
-          if (!title && typeof line.aiTitle === 'string')
-            title = line.aiTitle
+          if (!aiTitle && typeof line.aiTitle === 'string')
+            aiTitle = line.aiTitle
           continue
         }
 
@@ -85,13 +84,18 @@ export const claudeAdapter: SourceAdapter = {
 
         if (line.type === 'user') {
           const parts = userParts(message.content, pendingResults)
-          const textParts = parts.filter(p => p.kind === 'text')
-          if (!textParts.length)
+          if (!parts.length)
             continue // pure tool-result lines merge into their tool call
+          const textParts = parts.filter(p => p.kind === 'text')
           const joined = textParts.map(p => (p.kind === 'text' ? p.text : '')).join('\n\n')
-          if (!firstPrompt)
+          if (!firstPrompt && joined)
             firstPrompt = joined
-          drafts.push({ id: `${rawId}:u${drafts.length}`, at, role: 'user', parts: [truncatedText(joined), ...parts.filter(p => p.kind !== 'text')] })
+          drafts.push({
+            id: `${rawId}:u${drafts.length}`,
+            at,
+            role: 'user',
+            parts: [...(joined ? [truncatedText(joined)] : []), ...parts.filter(p => p.kind !== 'text')],
+          })
           continue
         }
 
@@ -120,18 +124,9 @@ export const claudeAdapter: SourceAdapter = {
         drafts.push({ id: `${rawId}:a${drafts.length}`, at, role: 'assistant', model: message.model ?? null, parts })
       }
 
-      if (!drafts.length)
-        continue
-      title = title || titleFromPrompt(firstPrompt) || ''
-      const trajectory: Trajectory = buildTrajectory({
-        sourceId: 'claude',
-        rawId,
-        title,
-        startedAt: startedAt === Number.POSITIVE_INFINITY ? updatedAt : startedAt,
-        updatedAt,
-        drafts,
-      })
-      build.trajectories.push(trajectory)
+      const trajectory = finishSession({ sourceId: 'claude', rawId, drafts, startedAt, updatedAt, title: aiTitle, firstPrompt })
+      if (trajectory)
+        build.trajectories.push(trajectory)
     }
 
     return {
