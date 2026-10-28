@@ -1,0 +1,122 @@
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { useAtomValue } from 'jotai'
+import { Suspense, useMemo } from 'react'
+
+import { allRowsAtom } from '@/app/stores/data'
+import type { TrajectoryRow } from '@/app/derive'
+import EmptyState from '@/components/empty-state'
+import Loading from '@/components/loading'
+import ProviderDot from '@/components/provider-dot'
+import { fmtDate, fmtInt } from '@/lib/format'
+
+export const Route = createFileRoute('/timeline')({
+  component: () => (
+    <Suspense fallback={<Loading />}>
+      <Timeline />
+    </Suspense>
+  ),
+})
+
+function Timeline() {
+  const rows = useAtomValue(allRowsAtom)
+
+  const years = useMemo(() => {
+    // rows 已按 updatedAt desc；时间线按 startedAt 分组展示"怎么走过来的"
+    const sorted = [...rows].sort((a, b) => b.startedAt - a.startedAt)
+    const byYear = new Map<number, TrajectoryRow[]>()
+    for (const row of sorted) {
+      const year = new Date(row.startedAt).getFullYear()
+      const list = byYear.get(year) ?? []
+      list.push(row)
+      byYear.set(year, list)
+    }
+    return [...byYear.entries()]
+  }, [rows])
+
+  if (!rows.length)
+    return <EmptyState />
+
+  const first = rows[rows.length - 1]
+  const last = rows[0]
+
+  return (
+    <div className="mx-auto max-w-3xl px-6 py-10 md:px-8">
+      <div className="slide-enter-content">
+        <header>
+          <h1 className="text-2xl font-medium text-hi">Timeline</h1>
+          <p className="mt-1.5 font-mono text-xs text-low">
+            {fmtInt(rows.length)}
+            {' '}
+            conversations ·
+            {' '}
+            {fmtDate(first.startedAt)}
+            {' '}
+            →
+            {' '}
+            {fmtDate(last.startedAt)}
+          </p>
+        </header>
+
+        <div className="relative mt-10 border-l border-line pl-6">
+          {years.map(([year, yearRows]) => (
+            <section key={year} className="pb-6">
+              <h2 className="-ml-6 pt-2 text-3xl font-medium text-hi slide-enter">{year}</h2>
+              <MonthGroups rows={yearRows} />
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MonthGroups({ rows }: { rows: readonly TrajectoryRow[] }) {
+  const months = useMemo(() => {
+    const byMonth = new Map<string, TrajectoryRow[]>()
+    for (const row of rows) {
+      const d = new Date(row.startedAt)
+      const key = `${d.getFullYear()}-${d.getMonth()}`
+      const list = byMonth.get(key) ?? []
+      list.push(row)
+      byMonth.set(key, list)
+    }
+    return [...byMonth.values()]
+  }, [rows])
+
+  return (
+    <div className="mt-4 space-y-6">
+      {months.map(monthRows => (
+        <div key={monthRows[0].startedAt}>
+          <div className="font-mono text-xs text-faint select-none">
+            {new Date(monthRows[0].startedAt).getFullYear()}
+            {' '}
+            年
+            {' '}
+            {new Date(monthRows[0].startedAt).getMonth() + 1}
+            {' '}
+            月 ·
+            {' '}
+            {monthRows.length}
+          </div>
+          <ul className="mt-2">
+            {monthRows.map(row => (
+              <li key={row.id} className="group flex items-baseline gap-3 py-1">
+                <span className="w-11 shrink-0 font-mono text-xs text-low tabular-nums">
+                  {fmtDate(row.startedAt).slice(5)}
+                </span>
+                <Link
+                  to="/sessions/$id"
+                  params={{ id: row.id }}
+                  className="min-w-0 flex-1 truncate text-sm text-mid transition-colors duration-200 group-hover:text-hi"
+                >
+                  {row.title}
+                </Link>
+                <ProviderDot sourceId={row.sourceId} className="translate-y-[1px]" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
+}
