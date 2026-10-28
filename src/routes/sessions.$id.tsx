@@ -5,7 +5,7 @@ import { Suspense, useState } from 'react'
 import { documentViewFamily, trajectoryByIdFamily, useVariantSwitcher, variantPathsAtom } from '@/app/stores/detail'
 import type { Trajectory } from '@/domain/model/trajectory'
 import type { DocBlock } from '@/domain/services/document-view'
-import type { AttachmentRef, Part, WebResult } from '@/domain/model/part'
+import type { AttachmentRef, Part, ToolCallPayload, WebResult } from '@/domain/model/part'
 import type { VariantRef } from '@/domain/services/turn-builder'
 import { orderedSiblingsOf } from '@/domain/services/turn-builder'
 import EmptyState from '@/components/empty-state'
@@ -283,15 +283,6 @@ function ThinkBlock({ text }: { text: string }) {
       )}
     </div>
   )
-}
-
-export interface ToolCallPayload {
-  title?: string
-  input?: unknown
-  output?: string
-  truncated?: boolean
-  originalChars?: number
-  error?: string
 }
 
 /** Collapsed one-liner per tool call; expands to the (truncated) output */

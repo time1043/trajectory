@@ -2,6 +2,7 @@ import type { SourceId } from '@/domain/model/identity'
 import { checkInvariants } from '@/domain/model/invariants'
 import type { ParsedSource } from '@/domain/model/trajectory'
 import type { Sanitizer } from '@/domain/ports/sanitizer'
+import type { SqliteQueryResult } from '@/domain/ports/data-host'
 import type { SourceAdapter, SourceManifest } from '@/domain/ports/source-adapter'
 
 /**
@@ -18,6 +19,16 @@ export async function ingest(adapter: SourceAdapter, manifest: SourceManifest, s
       if (!res.ok)
         throw new Error(`[trajectory] fetch ${path}: ${res.status}`)
       return res.arrayBuffer()
+    },
+    querySqlite: async (path, sql, params) => {
+      const res = await fetch('/@api/sqlite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, sql, params }),
+      })
+      if (!res.ok)
+        throw new Error(`[trajectory] sqlite ${path}: ${res.status}`)
+      return await res.json() as SqliteQueryResult
     },
   })
 
