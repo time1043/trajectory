@@ -2,8 +2,21 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 
+import { setupDataHmr } from './app/data-hmr'
+import { applyThemeClass } from './app/stores/theme'
 import './index.css'
 import { routeTree } from './routeTree.gen'
+
+// 主题在首帧前同步应用，防 FOUC
+applyThemeClass(
+  localStorage.getItem('trajectory.theme') === 'dark'
+    || (localStorage.getItem('trajectory.theme') !== 'light'
+      && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    ? 'dark'
+    : 'light',
+)
+
+setupDataHmr()
 
 // Create a new router instance
 const router = createRouter({ routeTree })

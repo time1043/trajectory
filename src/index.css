@@ -1,6 +1,300 @@
 @import 'tailwindcss';
-@plugin "daisyui" {
-  themes:
-    light --default,
-    dark --prefersdark;
+
+/* daisyUI 已移除：hairline + 透明度层级体系与组件库脸冲突，全部手写。
+   class 策略的 dark 变体（<html class="dark">），替代原 data-theme 方案 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* 三层背景：页面 / 面板 / 悬浮 */
+  --tr-base: #ffffff;
+  --tr-panel: #fafafa;
+  --tr-elevated: #f4f4f5;
+
+  /* 文字四阶：hi(正文/标题) mid(次要) low(元信息) faint(禁用/装饰) */
+  --tr-hi: #171717;
+  --tr-mid: #5f5f5f;
+  --tr-low: #949494;
+  --tr-faint: #c9c9c9;
+
+  /* hairline：antfu 的 #8884 */
+  --tr-line: rgb(136 136 136 / 0.27);
+  --tr-line-strong: rgb(136 136 136 / 0.45);
+
+  /* 唯一强调色：teal。只用于热力图、选中态、citation、链接 */
+  --tr-accent: #0d9488;
+  --tr-accent-soft: rgb(13 148 136 / 0.12);
+
+  /* provider 身份 = 数据维度，只做圆点，不进 chrome */
+  --tr-pv-deepseek: #4d6bfe;
+  --tr-pv-openai: #10a37f;
+  --tr-pv-claude: #d97757;
+  --tr-pv-local: #a3a3a3;
+
+  --tr-scrollbar: #eeeeee;
+  --tr-scrollbar-hover: #bbbbbb;
+
+  color-scheme: light;
+}
+
+.dark {
+  --tr-base: #050505; /* antfu 原值 */
+  --tr-panel: #101010;
+  --tr-elevated: #1a1a1b;
+
+  --tr-hi: #ededed;
+  --tr-mid: #a3a3a3;
+  --tr-low: #6f6f6f;
+  --tr-faint: #454545;
+
+  --tr-line: rgb(136 136 136 / 0.2);
+  --tr-line-strong: rgb(136 136 136 / 0.38);
+
+  --tr-accent: #2dd4bf;
+  --tr-accent-soft: rgb(45 212 191 / 0.1);
+
+  --tr-scrollbar: #111111;
+  --tr-scrollbar-hover: #222222;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-base: var(--tr-base);
+  --color-panel: var(--tr-panel);
+  --color-elevated: var(--tr-elevated);
+  --color-hi: var(--tr-hi);
+  --color-mid: var(--tr-mid);
+  --color-low: var(--tr-low);
+  --color-faint: var(--tr-faint);
+  --color-line: var(--tr-line);
+  --color-line-strong: var(--tr-line-strong);
+  --color-accent: var(--tr-accent);
+  --color-accent-soft: var(--tr-accent-soft);
+  --color-pv-deepseek: var(--tr-pv-deepseek);
+  --color-pv-openai: var(--tr-pv-openai);
+  --color-pv-claude: var(--tr-pv-claude);
+  --color-pv-local: var(--tr-pv-local);
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-mono:
+    'SF Mono', ui-monospace, 'JetBrains Mono', 'Cascadia Code', Menlo,
+    Consolas, 'PingFang SC', 'Microsoft YaHei', monospace;
+}
+
+html {
+  background-color: var(--tr-base);
+  overflow-y: scroll;
+}
+
+::selection {
+  background: #8884;
+}
+
+/* antfu 原款 6px 细滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--tr-base);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--tr-scrollbar);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--tr-scrollbar-hover);
+}
+
+/* antfu 原款阶梯入场：子元素 90ms 步进，上移 10px 淡入 */
+@keyframes slide-enter {
+  0% {
+    translate: 0 10px;
+    opacity: 0;
+  }
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .slide-enter {
+    animation: slide-enter 1s both 1;
+  }
+  .slide-enter-content > * {
+    --enter-stage: 0;
+    animation: slide-enter 1s both 1;
+    animation-delay: calc(var(--enter-stage) * 90ms);
+  }
+}
+
+/* 主题切换的 View Transition 圆形揭示 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* 详情页变体切换的后缀 crossfade */
+@keyframes tr-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.tr-fade-in {
+  animation: tr-fade-in 150ms ease-out;
+}
+
+/* 超长 Turn 的懒渲染占位（34.6 万字符级别的正文） */
+.tr-lazy-block {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
+/* ============ markdown 文档流（手写 prose，antfu 排版气质） ============ */
+.md {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--tr-hi);
+  overflow-wrap: break-word;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md p {
+  margin-top: 0.875rem;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 1.6em;
+  margin-bottom: 0.6em;
+}
+.md h1 {
+  font-size: 1.35em;
+}
+.md h2 {
+  font-size: 1.2em;
+}
+.md h3 {
+  font-size: 1.05em;
+}
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 1em;
+}
+.md ul {
+  list-style: disc;
+  padding-left: 1.4em;
+  margin-top: 0.6em;
+}
+.md ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+  margin-top: 0.6em;
+}
+.md li {
+  margin-top: 0.25em;
+}
+.md li > ul,
+.md li > ol {
+  margin-top: 0.25em;
+}
+.md a {
+  color: var(--tr-accent);
+  text-decoration: none;
+}
+.md a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.md blockquote {
+  border-left: 2px solid var(--tr-line);
+  padding-left: 1em;
+  margin-top: 0.875rem;
+  color: var(--tr-mid);
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--tr-line);
+  margin: 2em 0;
+}
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--tr-elevated);
+  border: 1px solid var(--tr-line);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.md pre {
+  margin-top: 0.875rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--tr-line);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  background-color: var(--tr-panel) !important;
+}
+.md pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.875rem;
+  font-size: 0.9em;
+}
+.md th {
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 1px solid var(--tr-line-strong);
+  padding: 0.4em 0.75em;
+}
+.md td {
+  border-bottom: 1px solid var(--tr-line);
+  padding: 0.4em 0.75em;
+}
+.md img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+.md sup.citation {
+  font-family: var(--font-mono);
+  font-size: 0.68em;
+  margin-left: 1px;
+}
+.md sup.citation a {
+  color: var(--tr-accent);
+}
+
+/* shiki 双主题（defaultColor: false → CSS 变量驱动，dark 切换零重渲染） */
+.md pre.shiki span {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style);
+  font-weight: var(--shiki-light-font-weight);
+}
+.dark .md pre.shiki span {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+  font-weight: var(--shiki-dark-font-weight);
 }
