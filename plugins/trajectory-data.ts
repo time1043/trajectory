@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import type { Plugin, ViteDevServer } from 'vite'
 
 export interface SourceFileEntry {
@@ -14,25 +15,52 @@ export interface SourceManifest {
   files: SourceFileEntry[]
 }
 
+export interface SqliteQueryResult {
+  rows: Record<string, unknown>[]
+}
+
 export const DATA_API_HMR_EVENT = 'trajectory:data-changed'
 
 const MANIFEST_TTL_MS = 1000
+const MAX_SCAN_FILES = 20000
+const SQLITE_SUFFIXES = new Set(['.sqlite', '.sqlite3', '.db'])
+
+// minimal structural typing so the plugin does not depend on @types/better-sqlite3 shapes
+interface SqliteDatabase {
+  prepare(sql: string): { all(...params: unknown[]): unknown[] }
+  close(): void
+}
+type SqliteCtor = new (path: string, options?: { readonly?: boolean, fileMustExist?: boolean }) => SqliteDatabase
+
+// lazily resolved so the plugin still loads without better-sqlite3 installed
+let sqliteCtor: SqliteCtor | null | undefined
+function getSqlite(): SqliteCtor | null {
+  if (sqliteCtor !== undefined)
+    return sqliteCtor
+  try {
+    sqliteCtor = createRequire(import.meta.url)('better-sqlite3') as unknown as SqliteCtor
+  }
+  catch {
+    sqliteCtor = null
+  }
+  return sqliteCtor
+}
 
 /**
  * Dev-only data host for local trajectory exports.
  *
- * Serves only what the browser cannot get by itself:
- * 1. a manifest of the source directories under data/
+ * The node side stays format-agnostic; adapters own all schema knowledge:
+ * 1. manifests of the source directories under data/ (recursive file listing)
  * 2. raw file bytes for paths that appear in a manifest
- * 3. chokidar watch -> HMR custom event when data changes
- *
- * All parsing/mapping stays in the browser (src/adapters/**) so adapters
- * remain isomorphic pure functions.
+ * 3. read-only SQL over SQLite files that appear in a manifest — a read-only
+ *    connection also sees WAL data, which a wasm single-file reader cannot
+ * 4. chokidar watch -> HMR custom event when data changes
  */
 export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
   const dataDir = opts.dataDir ?? 'data'
   let realRoot = ''
-  let manifestCache: { at: number; value: SourceManifest[] } | null = null
+  let manifestCache: { at: number, value: SourceManifest[] } | null = null
+  const sqliteHandles = new Map<string, SqliteDatabase>()
 
   async function scan(): Promise<SourceManifest[]> {
     if (manifestCache && Date.now() - manifestCache.at < MANIFEST_TTL_MS)
@@ -49,14 +77,14 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
 
     for (const group of groups) {
       const groupPath = path.join(realRoot, group)
-      let stat: fs.Stats
+      let groupStat: fs.Stats
       try {
-        stat = await fsp.stat(groupPath)
+        groupStat = await fsp.stat(groupPath)
       }
       catch {
         continue
       }
-      if (!stat.isDirectory())
+      if (!groupStat.isDirectory())
         continue
 
       let sources: string[] = []
@@ -79,24 +107,53 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
           continue
 
         const files: SourceFileEntry[] = []
-        const entries = await fsp.readdir(sourcePath, { withFileTypes: true })
-        for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-          if (!entry.isFile())
-            continue
-          const filePath = path.join(sourcePath, entry.name)
-          const fileStat = await fsp.stat(filePath)
-          files.push({
-            path: `${group}/${source}/${entry.name}`,
-            size: fileStat.size,
-            mtimeMs: fileStat.mtimeMs,
-          })
+        const walk = async (dir: string, prefix: string): Promise<void> => {
+          if (files.length >= MAX_SCAN_FILES)
+            return
+          let entries: fs.Dirent[]
+          try {
+            entries = await fsp.readdir(dir, { withFileTypes: true })
+          }
+          catch {
+            return
+          }
+          for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+            const rel = `${prefix}${entry.name}`
+            const full = path.join(dir, entry.name)
+            if (entry.isDirectory()) {
+              await walk(full, `${rel}/`)
+            }
+            else if (entry.isFile()) {
+              // transient sqlite sidecars and OS noise are not data
+              if (entry.name.startsWith('.') || /-wal$|-shm$/.test(entry.name))
+                continue
+              const fileStat = await fsp.stat(full)
+              files.push({ path: `${group}/${source}/${rel}`, size: fileStat.size, mtimeMs: fileStat.mtimeMs })
+            }
+            if (files.length >= MAX_SCAN_FILES)
+              return
+          }
         }
+        await walk(sourcePath, '')
         manifests.push({ dirName: `${group}/${source}`, files })
       }
     }
 
     manifestCache = { at: Date.now(), value: manifests }
     return manifests
+  }
+
+  function sqliteFor(requested: string): SqliteDatabase {
+    const cached = sqliteHandles.get(requested)
+    if (cached)
+      return cached
+    const Database = getSqlite()
+    if (!Database)
+      throw new Error('better-sqlite3 is not installed')
+    const resolved = path.resolve(realRoot, requested)
+    const db = new Database(resolved, { readonly: true, fileMustExist: true })
+    sqliteHandles.set(requested, db)
+    return db
   }
 
   return {
@@ -106,7 +163,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
     configResolved(config) {
       const root = path.resolve(config.root, dataDir)
       try {
-        // data/ is a symlink to a directory outside the repo — resolve once
+        // data/ may be a symlink outside the repo — resolve once
         realRoot = fs.realpathSync(root)
         config.server.fs.allow.push(realRoot)
       }
@@ -125,6 +182,12 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
           if (!filePath.startsWith(realRoot))
             return
           manifestCache = null
+          for (const [key, db] of sqliteHandles) {
+            if (filePath.startsWith(path.resolve(realRoot, key))) {
+              db.close()
+              sqliteHandles.delete(key)
+            }
+          }
           if (timer)
             clearTimeout(timer)
           timer = setTimeout(() => {
@@ -133,12 +196,20 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
               event: DATA_API_HMR_EVENT,
               data: { path: path.relative(realRoot, filePath) },
             })
-          }, 250)
+          }, 500)
         }
         server.watcher.on('change', notify)
         server.watcher.on('add', notify)
         server.watcher.on('unlink', notify)
       }
+
+      const readBody = (req: import('node:http').IncomingMessage): Promise<string> =>
+        new Promise((resolve, reject) => {
+          let body = ''
+          req.on('data', (chunk: Buffer) => (body += chunk))
+          req.on('end', () => resolve(body))
+          req.on('error', reject)
+        })
 
       // ---- endpoints ----
       server.middlewares.use(async (req, res, next) => {
@@ -186,11 +257,48 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
           return
         }
 
+        if (url.pathname === '/@api/sqlite' && req.method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as { path?: string, sql?: string, params?: unknown[] }
+            if (!body.path || !body.sql) {
+              res.statusCode = 400
+              res.end('missing path or sql')
+              return
+            }
+            const manifests = await scan()
+            const known = manifests.some(m => m.files.some(f => f.path === body.path && SQLITE_SUFFIXES.has(path.extname(f.path))))
+            if (!known) {
+              res.statusCode = 404
+              res.end('database not in manifest')
+              return
+            }
+            if (path.relative(realRoot, path.resolve(realRoot, body.path)).startsWith('..')) {
+              res.statusCode = 403
+              res.end('forbidden')
+              return
+            }
+            if (!/^\s*(select|with)\b/i.test(body.sql)) {
+              res.statusCode = 403
+              res.end('read-only: only SELECT/WITH statements')
+              return
+            }
+            const db = sqliteFor(body.path)
+            const rows = db.prepare(body.sql).all(...(body.params ?? [])) as Record<string, unknown>[]
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ rows } satisfies SqliteQueryResult))
+          }
+          catch (error) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: String(error) }))
+          }
+          return
+        }
+
         res.statusCode = 404
         res.end('not found')
       })
 
-      // startup log, dev-tool style
+      // startup log
       void scan().then((manifests) => {
         if (!manifests.length)
           return
