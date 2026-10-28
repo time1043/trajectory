@@ -9,6 +9,16 @@ export interface WebResult {
   title: string
 }
 
+/** Structured payload for tool-call parts; adapters fill what they know */
+export interface ToolCallPayload {
+  title?: string
+  input?: unknown
+  output?: string
+  truncated?: boolean
+  originalChars?: number
+  error?: string
+}
+
 /**
  * Role-agnostic content fragment (value object). Every foreign fragment kind
  * maps here; unrecognized ones land in the `unknown` bucket — never drop data

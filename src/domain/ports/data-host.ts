@@ -1,7 +1,7 @@
 /**
  * DataHost port — what the local host (vite plugin `plugins/trajectory-data.ts`)
- * exposes to the browser: manifests, raw bytes, change events. Node side stays
- * filesystem-only; all parsing lives in browser-side adapters.
+ * exposes to the browser: manifests, raw bytes, read-only SQLite queries and
+ * change events. The node side stays format-agnostic; adapters own schemas.
  */
 
 export interface SourceFileEntry {
@@ -13,11 +13,18 @@ export interface SourceFileEntry {
 export interface SourceManifest {
   /** Two-level path relative to data/, e.g. 'web/deepseek' */
   dirName: string
+  /** Recursive listing; transient sqlite sidecars and dotfiles excluded */
   files: SourceFileEntry[]
 }
 
-/** Only paths registered in a manifest may be fetched */
+/** Only paths registered in a manifest may be fetched or queried */
 export type FetchDataFile = (path: string) => Promise<ArrayBuffer>
+
+export interface SqliteQueryResult {
+  rows: Record<string, unknown>[]
+}
+
+export type QuerySqlite = (path: string, sql: string, params?: readonly unknown[]) => Promise<SqliteQueryResult>
 
 export interface DataChangeEvent {
   path: string
