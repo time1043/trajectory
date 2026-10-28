@@ -3,18 +3,12 @@ import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 
 import { setupDataHmr } from './app/data-hmr'
-import { applyThemeClass } from './app/stores/theme'
+import { applyThemeClass, initialTheme } from './app/stores/theme'
 import './index.css'
 import { routeTree } from './routeTree.gen'
 
 // resolve the theme synchronously before first paint to avoid FOUC
-applyThemeClass(
-  localStorage.getItem('trajectory.theme') === 'dark'
-    || (localStorage.getItem('trajectory.theme') !== 'light'
-      && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    ? 'dark'
-    : 'light',
-)
+applyThemeClass(initialTheme())
 
 setupDataHmr()
 

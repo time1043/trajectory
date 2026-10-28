@@ -6,7 +6,7 @@ import { useEffect } from 'react'
 import CommandPalette from '@/components/command-palette'
 import AppSidebar from '@/components/app-sidebar'
 import ScrollTop from '@/components/scroll-top'
-import { paletteOpenAtom } from '@/app/stores/ui'
+import { paletteOpenAtom } from '@/app/stores/palette'
 
 const RootLayout = () => {
   const setPaletteOpen = useSetAtom(paletteOpenAtom)

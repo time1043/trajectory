@@ -4,22 +4,8 @@ import path from 'node:path'
 import { createRequire } from 'node:module'
 import type { Plugin, ViteDevServer } from 'vite'
 
-export interface SourceFileEntry {
-  path: string
-  size: number
-  mtimeMs: number
-}
-
-export interface SourceManifest {
-  dirName: string
-  files: SourceFileEntry[]
-}
-
-export interface SqliteQueryResult {
-  rows: Record<string, unknown>[]
-}
-
-export const DATA_API_HMR_EVENT = 'trajectory:data-changed'
+import { DATA_API_HMR_EVENT } from '../src/domain/ports/data-host.ts'
+import type { SourceFileEntry, SourceManifest, SqliteQueryResult } from '../src/domain/ports/data-host.ts'
 
 const MANIFEST_TTL_MS = 1000
 const MAX_SCAN_FILES = 20000

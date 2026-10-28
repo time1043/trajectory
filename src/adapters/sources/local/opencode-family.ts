@@ -1,4 +1,4 @@
-import type { QuerySqlite, SourceManifest } from '@/domain/ports/data-host'
+import type { QuerySqlite } from '@/domain/ports/data-host'
 import type { ParsedSource, Trajectory } from '@/domain/model/trajectory'
 import type { Part, ToolCallPayload } from '@/domain/model/part'
 import {
@@ -32,7 +32,6 @@ export interface OpencodeFamilyDialect {
 }
 
 export async function parseOpencodeFamily(opts: {
-  manifest: SourceManifest
   querySqlite: QuerySqlite
   sourceId: string
   label: string

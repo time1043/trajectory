@@ -1,20 +1,16 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
-import { Suspense, useMemo } from 'react'
+import { useMemo } from 'react'
 
 import { allRowsAtom } from '@/app/stores/data'
 import type { TrajectoryRow } from '@/app/derive'
 import EmptyState from '@/components/empty-state'
-import Loading from '@/components/loading'
+import { withSuspense } from '@/components/loading'
 import ProviderDot from '@/components/provider-dot'
 import { MONTH_SHORT, fmtDate, fmtInt } from '@/lib/format'
 
 export const Route = createFileRoute('/timeline')({
-  component: () => (
-    <Suspense fallback={<Loading />}>
-      <Timeline />
-    </Suspense>
-  ),
+  component: withSuspense(Timeline),
 })
 
 function Timeline() {

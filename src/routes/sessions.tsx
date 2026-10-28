@@ -1,10 +1,10 @@
 import { Outlet, createFileRoute, useParams, useRouter } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
-import { Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import Loading from '@/components/loading'
+import { withSuspense } from '@/components/loading'
 import SessionList from '@/components/session-list'
-import { paletteOpenAtom } from '@/app/stores/ui'
+import { paletteOpenAtom } from '@/app/stores/palette'
 import { useSessionRows, type SessionSearch } from '@/app/stores/sessions'
 
 export const Route = createFileRoute('/sessions')({
@@ -13,7 +13,7 @@ export const Route = createFileRoute('/sessions')({
     from: typeof search.from === 'string' ? search.from : undefined,
     to: typeof search.to === 'string' ? search.to : undefined,
   }),
-  component: SessionsSuspense,
+  component: withSuspense(SessionsLayout),
 })
 
 function SessionsLayout() {
@@ -125,11 +125,4 @@ function SessionsLayout() {
   )
 }
 
-function SessionsSuspense() {
-  // useSessionRows reads async atoms — must evaluate inside a Suspense boundary
-  return (
-    <Suspense fallback={<Loading />}>
-      <SessionsLayout />
-    </Suspense>
-  )
-}
+

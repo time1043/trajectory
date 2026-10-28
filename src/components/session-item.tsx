@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import type { TrajectoryRow } from '@/app/derive'
 import { topicLabel } from '@/app/derive'
 import type { SessionSearch } from '@/app/stores/sessions'
+import { OTHER_TOPIC } from '@/domain/services/topics'
 import ProviderDot from '@/components/provider-dot'
 
 function shortDate(at: number): string {
@@ -32,7 +33,7 @@ export default function SessionItem({ row, search, active }: {
         <span>{row.turnCount} turns</span>
         <span className="text-faint">·</span>
         <ProviderDot sourceId={row.sourceId} />
-        {row.primaryTopic !== 'other' && (
+        {row.primaryTopic !== OTHER_TOPIC && (
           <>
             <span className="text-faint">·</span>
             <span className="truncate text-low">{topicLabel(row.primaryTopic)}</span>

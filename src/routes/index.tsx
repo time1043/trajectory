@@ -1,23 +1,18 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
-import { Suspense } from 'react'
 
 import { growthOverviewAtom } from '@/app/stores/growth'
 import { allRowsAtom } from '@/app/stores/data'
 import ActivityHeatmap from '@/components/activity-heatmap'
 import EmptyState from '@/components/empty-state'
 import HourDistribution from '@/components/hour-distribution'
-import Loading from '@/components/loading'
+import { withSuspense } from '@/components/loading'
 import SessionItem from '@/components/session-item'
 import StatStrip from '@/components/stat-strip'
 import { fmtDate, fmtInt } from '@/lib/format'
 
 export const Route = createFileRoute('/')({
-  component: () => (
-    <Suspense fallback={<Loading />}>
-      <Dashboard />
-    </Suspense>
-  ),
+  component: withSuspense(Dashboard),
 })
 
 function Dashboard() {

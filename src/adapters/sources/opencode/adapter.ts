@@ -18,7 +18,6 @@ export const opencodeAdapter: SourceAdapter = {
   async parse({ manifest, querySqlite }) {
     const dbPath = manifest.files.find(f => f.path.endsWith('/opencode.db'))!.path
     return parseOpencodeFamily({
-      manifest,
       querySqlite,
       sourceId: 'opencode',
       label: 'OpenCode',

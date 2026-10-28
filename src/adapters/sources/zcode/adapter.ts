@@ -17,7 +17,6 @@ export const zcodeAdapter: SourceAdapter = {
   async parse({ manifest, querySqlite }) {
     const dbPath = manifest.files.find(f => f.path.endsWith('/db.sqlite'))!.path
     return parseOpencodeFamily({
-      manifest,
       querySqlite,
       sourceId: 'zcode',
       label: 'ZCode',

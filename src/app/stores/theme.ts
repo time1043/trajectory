@@ -3,11 +3,13 @@ import { useCallback } from 'react'
 
 export type Theme = 'light' | 'dark'
 
+export const THEME_KEY = 'trajectory.theme'
+
 /** Resolved synchronously before first paint in main.tsx; this is the fallback */
-function initialTheme(): Theme {
+export function initialTheme(): Theme {
   if (typeof window === 'undefined')
     return 'dark'
-  const raw = localStorage.getItem('trajectory.theme')
+  const raw = localStorage.getItem(THEME_KEY)
   if (raw === 'dark' || raw === 'light')
     return raw
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -47,7 +49,7 @@ export function useTheme() {
     }
 
     setTheme(next)
-    localStorage.setItem('trajectory.theme', next)
+    localStorage.setItem(THEME_KEY, next)
   }, [theme, setTheme])
   return { theme, toggle }
 }

@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 
 import type { EpochMs } from '@/domain/model/identity'
 import type { DailyActivity } from '@/domain/services/growth-analytics'
+import { MONTH_SHORT, fmtDate } from '@/lib/format'
 
 const DAY = 86_400_000
 const WEEKS_PER_ROW = 53
@@ -34,12 +35,6 @@ function levelOf(count: number): HeatCell['level'] {
   return 4
 }
 
-function toDay(d: Date): string {
-  const m = `${d.getMonth() + 1}`.padStart(2, '0')
-  const day = `${d.getDate()}`.padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
-
 function mondayOf(d: Date): Date {
   const result = new Date(d)
   const offset = (result.getDay() + 6) % 7 // Monday = 0
@@ -49,10 +44,8 @@ function mondayOf(d: Date): Date {
 }
 
 function formatLabel(d: Date): string {
-  return `${d.getFullYear()}.${`${d.getMonth() + 1}`.padStart(2, '0')}`
+  return fmtDate(d.getTime()).slice(0, 7)
 }
-
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /**
  * GitHub-style heatmap, rows split by "trajectory years": 53-week rows anchored
@@ -100,7 +93,7 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
           const date = new Date(weekStart)
           date.setDate(weekStart.getDate() + d)
           const future = date.getTime() > last.getTime()
-          const day = toDay(date)
+          const day = fmtDate(date.getTime())
           const count = counts.get(day) ?? 0
           cells.push({ day, count, level: levelOf(count), future })
         }

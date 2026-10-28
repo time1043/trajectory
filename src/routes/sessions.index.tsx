@@ -1,15 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Suspense } from 'react'
 
-import Loading from '@/components/loading'
 import Kbd from '@/components/kbd'
+import { withSuspense } from '@/components/loading'
 
 export const Route = createFileRoute('/sessions/')({
-  component: () => (
-    <Suspense fallback={<Loading />}>
-      <SessionsWelcome />
-    </Suspense>
-  ),
+  component: withSuspense(SessionsWelcome),
 })
 
 function SessionsWelcome() {
