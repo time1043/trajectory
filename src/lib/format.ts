@@ -14,28 +14,30 @@ export function fmtTime(at: number): string {
   return `${`${d.getHours()}`.padStart(2, '0')}:${`${d.getMinutes()}`.padStart(2, '0')}`
 }
 
-/** 38s / 2m05s / 1.2h */
+/** 38s / 2m05s / 1.2h — rounded seconds, no 60s overflow inside a minute */
 export function fmtLatency(ms: number): string {
-  if (ms < 60_000)
-    return `${Math.round(ms / 1000)}s`
-  if (ms < 3_600_000)
-    return `${Math.floor(ms / 60_000)}m${`${Math.round((ms % 60_000) / 1000)}`.padStart(2, '0')}s`
+  const totalSeconds = Math.round(ms / 1000)
+  if (totalSeconds < 60)
+    return `${totalSeconds}s`
+  if (totalSeconds < 3600) {
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}m${`${seconds}`.padStart(2, '0')}s`
+  }
   return `${(ms / 3_600_000).toFixed(1)}h`
 }
 
-/** 823 -> 823; 12431 -> 12.4k; 1243000 -> 1.2m */
+/** 823 -> 823; 12431 -> 12.4k; 1243000 -> 1.2m (rolls over instead of 1000.0k) */
 export function fmtChars(n: number): string {
-  if (n < 1000)
-    return String(n)
-  if (n < 1_000_000)
-    return `${(n / 1000).toFixed(1)}k`
+  if (n < 999_950)
+    return n < 1000 ? String(n) : `${(n / 1000).toFixed(1)}k`
   return `${(n / 1_000_000).toFixed(1)}m`
 }
 
 export function fmtBytes(n: number): string {
   if (n < 1024)
     return `${n} B`
-  if (n < 1024 * 1024)
+  if (n < 1024 * 1023.95)
     return `${(n / 1024).toFixed(1)} KB`
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
