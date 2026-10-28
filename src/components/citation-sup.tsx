@@ -8,7 +8,7 @@ type MdSupProps = React.ClassAttributes<HTMLElement>
   & React.HTMLAttributes<HTMLElement>
   & { node?: unknown }
 
-/** citation 渲染：窗口解析 → 注册表稳定编号；查不到降级为纯文本标记 */
+/** Citation rendering: window resolution -> stable registry number; degraded plain marker when unresolvable */
 export default function CitationSup(props: MdSupProps) {
   const context = useContext(CitationContext)
   const raw = (props as { 'data-citation'?: string })['data-citation']

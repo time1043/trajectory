@@ -3,7 +3,7 @@ import { getDefaultStore, useSetAtom } from 'jotai'
 import { DATA_API_HMR_EVENT } from '@/domain/ports/data-host'
 import { dataVersionAtom } from './stores/data'
 
-/** dev 期数据文件变化 → bump dataVersionAtom，下游 async atom 全部重算 */
+/** Data file changed on disk -> bump dataVersionAtom; downstream async atoms refetch */
 export function setupDataHmr(): void {
   if (!import.meta.hot)
     return
@@ -13,7 +13,7 @@ export function setupDataHmr(): void {
   })
 }
 
-/** 供 UI 使用的手动刷新（错误态重试等） */
+/** Manual refresh for the UI (error retries etc.) */
 export function useRefreshData() {
   return useSetAtom(dataVersionAtom)
 }

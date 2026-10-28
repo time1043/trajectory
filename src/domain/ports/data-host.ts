@@ -1,6 +1,7 @@
 /**
- * DataHost 端口 — 数据宿主（本地为 vite 插件 plugins/trajectory-data.ts）向浏览器暴露的契约。
- * node 侧只做文件系统：清单 + 字节流 + watch。
+ * DataHost port — what the local host (vite plugin `plugins/trajectory-data.ts`)
+ * exposes to the browser: manifests, raw bytes, change events. Node side stays
+ * filesystem-only; all parsing lives in browser-side adapters.
  */
 
 export interface SourceFileEntry {
@@ -10,18 +11,17 @@ export interface SourceFileEntry {
 }
 
 export interface SourceManifest {
-  /** 相对 data/ 的两级路径，如 'web/deepseek' */
+  /** Two-level path relative to data/, e.g. 'web/deepseek' */
   dirName: string
   files: SourceFileEntry[]
 }
 
-/** manifest 中登记的路径之外一律拒绝取用 */
+/** Only paths registered in a manifest may be fetched */
 export type FetchDataFile = (path: string) => Promise<ArrayBuffer>
 
-/** 数据变化事件（HMR custom event payload） */
 export interface DataChangeEvent {
   path: string
 }
 
-/** HMR custom event 名（node 侧插件 plugins/trajectory-data.ts 使用同名常量，改动需两侧同步） */
+/** HMR custom event name — keep in sync with plugins/trajectory-data.ts */
 export const DATA_API_HMR_EVENT = 'trajectory:data-changed'

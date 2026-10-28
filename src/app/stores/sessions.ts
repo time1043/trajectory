@@ -6,7 +6,7 @@ import type { Trajectory } from '@/domain/model/trajectory'
 import { buildTurns } from '@/domain/services/turn-builder'
 import { allSourcesDataAtom } from './data'
 
-/** /sessions 路由的 search params 形状（真源在 URL，jotai 不重复持有） */
+/** Search param shape of the /sessions route (URL is the truth, jotai does not mirror it) */
 export interface SessionSearch {
   q?: string
   from?: string
@@ -16,8 +16,9 @@ export interface SessionSearch {
 const DAY_MS = 86_400_000
 
 /**
- * 合并轻量行 + 三维过滤（q / provider / 日期窗口）。
- * 日期口径：会话在窗口内有任意 Turn 活动即命中——与热力图按 Turn 计数一致。
+ * Merged lightweight rows + filtering (q / date window). Date semantics: a
+ * conversation hits when it has any turn activity in the window — same
+ * accounting as the heatmap.
  */
 export function useSessionRows(search: SessionSearch): TrajectoryRow[] {
   const sources = useAtomValue(allSourcesDataAtom)

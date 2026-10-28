@@ -50,8 +50,9 @@ function SessionContent({ trajectory, blocks, references, citationWindows }: Con
   const userCount = blocks.filter(b => b.node.role === 'user' && b.chainIndex === 0).length
 
   return (
-    // key=路径哈希：变体切换后整条路径作为连续文档重渲染；
-    // 前缀节点的 key 不变使 React 复用，切换过的会话补 150ms crossfade
+    // key = path hash: after a variant switch the whole path re-renders as one
+    // continuous document; unchanged prefix keys let React reuse blocks, and
+    // switched conversations get a 150ms crossfade
     <div className={`mx-auto max-w-3xl px-6 py-10 md:px-8 ${switched ? 'tr-fade-in' : ''}`}>
       <h1 className="text-2xl leading-snug font-medium text-hi">{trajectory.title}</h1>
       <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-low">
@@ -82,7 +83,7 @@ function SessionContent({ trajectory, blocks, references, citationWindows }: Con
   )
 }
 
-// ============ 消息块 ============
+// ============ message blocks ============
 
 function MessageBlock({ trajectory, block, references, citationWindow }: {
   trajectory: Trajectory
@@ -132,7 +133,7 @@ function UserBlock({ trajectory, block, onSwitch }: {
         <BlockLabel role="YOU" node={node} />
         {rewritten && (
           <span className="rounded-xs border border-line px-1 font-mono text-[10px] text-faint select-none">
-            改写 #{chainIndex}
+            rewritten #{chainIndex}
           </span>
         )}
         {variant && variant.count > 1 && (
@@ -218,7 +219,7 @@ function VariantPager({ trajectory, variant, nodeId, onSwitch }: {
         type="button"
         onClick={() => onSwitch({ nodeId: prev, siblingOf: nodeId })}
         className="px-1.5 py-0.5 transition-colors duration-150 hover:text-hi"
-        aria-label="上一个分支"
+        aria-label="Previous variant"
       >
         <IconChevronLeft className="size-3" />
       </button>
@@ -231,7 +232,7 @@ function VariantPager({ trajectory, variant, nodeId, onSwitch }: {
         type="button"
         onClick={() => onSwitch({ nodeId: next, siblingOf: nodeId })}
         className="px-1.5 py-0.5 transition-colors duration-150 hover:text-hi"
-        aria-label="下一个分支"
+        aria-label="Next variant"
       >
         <IconChevronRight className="size-3" />
       </button>
@@ -239,7 +240,7 @@ function VariantPager({ trajectory, variant, nodeId, onSwitch }: {
   )
 }
 
-// ============ Part 渲染 ============
+// ============ part rendering ============
 
 function PartRenderer({ part, references, citationWindow }: {
   part: Part
@@ -256,7 +257,7 @@ function PartRenderer({ part, references, citationWindow }: {
     case 'attachment':
       return <FileChips files={part.files} />
     case 'tool-call':
-      return <ToolChip label={`▸ ${part.tool}`} />
+      return <ToolBlock tool={part.tool} payload={part.payload} />
     case 'unknown':
       return <ToolChip label={`? ${part.rawType}`} />
   }
@@ -278,6 +279,46 @@ function ThinkBlock({ text }: { text: string }) {
       {open && (
         <div className="mt-2 border-l border-line pl-4 text-sm leading-7 whitespace-pre-wrap text-mid">
           {text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export interface ToolCallPayload {
+  title?: string
+  input?: unknown
+  output?: string
+  truncated?: boolean
+  originalChars?: number
+  error?: string
+}
+
+/** Collapsed one-liner per tool call; expands to the (truncated) output */
+function ToolBlock({ tool, payload }: { tool: string, payload?: unknown }) {
+  const [open, setOpen] = useState(false)
+  const p = (payload ?? {}) as ToolCallPayload
+  const label = p.title ? `${tool} · ${p.title}` : tool
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-1 font-mono text-xs transition-colors duration-150 ${p.error ? 'text-error-strong' : 'text-low hover:text-hi'}`}
+      >
+        <span className={`inline-block text-[10px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
+        <span className="truncate">{label}</span>
+        {p.error && <span className="text-faint">· failed</span>}
+      </button>
+      {open && p.output && (
+        <div className="mt-2 border-l border-line pl-4">
+          <pre className="max-h-96 max-w-full overflow-auto font-mono text-xs leading-5 whitespace-pre-wrap text-mid">{p.output}</pre>
+          {p.truncated && p.originalChars !== undefined && (
+            <div className="mt-1 font-mono text-[10px] text-faint select-none">
+              truncated · original {fmtChars(p.originalChars)} chars
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -341,7 +382,7 @@ function ToolChip({ label }: { label: string }) {
   )
 }
 
-// ============ References（会话级单一尾注区） ============
+// ============ references (single session-level footnote) ============
 
 function ReferenceList({ references }: { references: readonly WebResult[] }) {
   return (

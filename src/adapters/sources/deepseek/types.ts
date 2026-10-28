@@ -1,4 +1,4 @@
-/** DeepSeek 官方导出的原始类型（只在本 adapter 内可见，不外泄到领域层） */
+/** Raw shapes of the DeepSeek official export — visible only inside this adapter */
 
 export interface RawUser {
   user_id: string

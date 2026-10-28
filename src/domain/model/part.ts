@@ -10,9 +10,9 @@ export interface WebResult {
 }
 
 /**
- * Part — 角色无关的内容片段（值对象）。
- * 深层来源的 fragment 一律先映射到这里；未识别类型进 unknown 桶，
- * 禁止静默丢弃（导出格式漂移的保险丝）。
+ * Role-agnostic content fragment (value object). Every foreign fragment kind
+ * maps here; unrecognized ones land in the `unknown` bucket — never drop data
+ * silently (fuse against export format drift).
  */
 export type Part =
   | { kind: 'text'; text: string }
@@ -22,6 +22,7 @@ export type Part =
   | { kind: 'tool-call'; tool: string; payload?: unknown }
   | { kind: 'unknown'; rawType: string }
 
+/** Rough char count for lazy-render placeholders */
 export function partTextLength(part: Part): number {
   switch (part.kind) {
     case 'text':

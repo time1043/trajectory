@@ -5,9 +5,10 @@ import type { Sanitizer } from '@/domain/ports/sanitizer'
 import type { SourceAdapter, SourceManifest } from '@/domain/ports/source-adapter'
 
 /**
- * ingest 管道：adapter.parse → sanitize → invariants 校验 → 深冻结。
- * 管道出口的 ParsedSource 是不可变事实，React Compiler 的 memo 依赖这一点；
- * 任何"变化"（变体切换等）都必须通过纯函数返回新值，绝不就地改写。
+ * Ingest pipeline: adapter.parse -> sanitize -> invariant checks -> deep
+ * freeze. The pipeline output is immutable fact — React Compiler memoization
+ * relies on it, so any "change" (variant switching etc.) must go through pure
+ * functions returning new values, never in-place mutation.
  */
 export async function ingest(adapter: SourceAdapter, manifest: SourceManifest, sanitizer: Sanitizer): Promise<ParsedSource> {
   const raw = await adapter.parse({
@@ -45,7 +46,7 @@ function deepFreeze<T>(value: T): T {
   return value
 }
 
-/** 按来源找到能认领该 manifest 的 adapter；无认领者返回 null（UI 显示"未识别"而非崩溃） */
+/** First adapter that claims the manifest; null leaves the directory "unrecognized" instead of crashing */
 export function detectAdapter(adapters: readonly SourceAdapter[], manifest: SourceManifest): SourceAdapter | null {
   return adapters.find(a => a.detect(manifest)) ?? null
 }

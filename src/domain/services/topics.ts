@@ -1,7 +1,8 @@
 /**
- * Topic — 派生读模型的类型与纯匹配函数。
- * 本期口径：预置关键词字典（中英 patterns），确定、可复述、<5ms@520。
- * 端口留给未来 LLM/embedding 实现；字典本体是"策略"，放 adapters/topics/。
+ * Topic read-model types plus the pure matcher. Current approach: a curated
+ * keyword dictionary — deterministic, explainable, <5ms @ 520 conversations.
+ * The port for a future LLM/embedding implementation stays open; the
+ * dictionary itself (policy) lives in adapters/topics/.
  */
 export interface TopicDef {
   readonly id: string
@@ -11,7 +12,7 @@ export interface TopicDef {
 
 export const OTHER_TOPIC = 'other'
 
-/** 返回命中 TopicDef 的 id；多条命中取 patterns 命中数最多者；无命中 → other */
+/** Id of the TopicDef with the most pattern hits; 'other' when none match */
 export function assignTopic(
   defs: readonly TopicDef[],
   title: string,

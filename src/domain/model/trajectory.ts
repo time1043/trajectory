@@ -1,10 +1,9 @@
 import type { EpochMs, NodeId, SourceId, TrajectoryId } from './identity'
 import type { MessageNode } from './message-node'
 
-/** PersonaProfile — user.json 的领域投影；PII 在 adapter 内就地掩码，明文不进领域层 */
+/** Projection of the export's user record; PII is masked inside the adapter, plaintext never enters the domain */
 export interface PersonaProfile {
   readonly displayName: string
-  /** 已掩码的标识符，如 '166****94@qq.com' */
   readonly identifiers: readonly string[]
 }
 
@@ -14,9 +13,9 @@ export interface ParseDiagnostics {
 }
 
 /**
- * Trajectory — 聚合根。
- * nodes 为真相层（含分支树），activePath 为默认读路径（每个分支点取末位 child，
- * 实测归纳：导出无 current_node，childIds 时间升序）。
+ * Aggregate root. `nodes` is the truth layer (full branch tree); `activePath`
+ * is the default read path — last child at every fork (empirical: exports
+ * carry no current_node and childIds come out time-ascending).
  */
 export interface Trajectory {
   readonly id: TrajectoryId
@@ -28,7 +27,7 @@ export interface Trajectory {
   readonly activePath: readonly NodeId[]
 }
 
-/** adapter 的一次产出：领域模型 + 来源级诊断 */
+/** One adapter output: domain model plus source-level diagnostics */
 export interface ParsedSource {
   readonly sourceId: SourceId
   readonly label: string
@@ -37,7 +36,7 @@ export interface ParsedSource {
   readonly diagnostics: ParseDiagnostics
 }
 
-/** 用户节点允许的片段种类（附件随提问上传；推理/搜索/工具是助手侧产物） */
+/** Kinds allowed in a user node (attachments ride the prompt; reasoning/search/tools are assistant-side) */
 export function hasForeignParts(node: MessageNode): boolean {
   if (node.role !== 'user')
     return false

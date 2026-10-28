@@ -1,4 +1,4 @@
-/** hour-of-day 活跃分布（本地时间）——确定性的"习惯"画像 */
+/** Local-time hour-of-day activity — a deterministic habit profile */
 export default function HourDistribution({ histogram }: { histogram: readonly number[] }) {
   const max = Math.max(...histogram, 1)
   const labels = [0, 6, 12, 18]

@@ -23,7 +23,7 @@ export function fmtLatency(ms: number): string {
   return `${(ms / 3_600_000).toFixed(1)}h`
 }
 
-/** 823 → 823；12431 → 12.4k；1243000 → 1.2m */
+/** 823 -> 823; 12431 -> 12.4k; 1243000 -> 1.2m */
 export function fmtChars(n: number): string {
   if (n < 1000)
     return String(n)
@@ -39,3 +39,7 @@ export function fmtBytes(n: number): string {
     return `${(n / 1024).toFixed(1)} KB`
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+export { MONTH_SHORT }

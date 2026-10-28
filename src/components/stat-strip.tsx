@@ -3,7 +3,7 @@ export interface StatItem {
   label: string
 }
 
-/** hairline 竖线分隔的统计条 —— 不是四张圆角卡片 */
+/** Stats divided by hairlines — not four rounded cards */
 export default function StatStrip({ items }: { items: readonly StatItem[] }) {
   return (
     <div className="flex flex-wrap divide-x divide-line">

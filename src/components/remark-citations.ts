@@ -3,9 +3,10 @@ import { createContext } from 'react'
 import type { WebResult } from '@/domain/model/part'
 
 /**
- * remark 插件：把正文里的 `[citation:N]` 文本节点切分为自定义 citation 节点，
- * mdast→hast 经 data.hName 变成 <sup class="citation" data-citation="N">N</sup>，
- * 再由 react-markdown 的 components.sup（citation-sup.tsx）接管渲染与解析。
+ * remark plugin: splits `[citation:N]` text nodes into custom citation nodes;
+ * mdast->hast turns them into <sup class="citation" data-citation="N">N</sup>
+ * via data.hName, and react-markdown's components.sup (citation-sup.tsx) takes
+ * over rendering and resolution.
  */
 const CITATION_RE = /\[citation:(\d+)\]/g
 

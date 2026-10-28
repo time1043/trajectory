@@ -1,17 +1,17 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import { useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 
 import CommandPalette from '@/components/command-palette'
 import AppSidebar from '@/components/app-sidebar'
 import ScrollTop from '@/components/scroll-top'
 import { paletteOpenAtom } from '@/app/stores/ui'
-import { useSetAtom } from 'jotai'
 
 const RootLayout = () => {
   const setPaletteOpen = useSetAtom(paletteOpenAtom)
 
-  // 全局 ⌘K
+  // global ⌘K
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {

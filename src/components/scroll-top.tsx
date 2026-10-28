@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { IconArrowUp } from './icons'
 
-/** antfu 原款：滚动 >300px 出现的右下角圆钮，透明度过渡 */
+/** antfu-style: shows past 300px scroll, opacity transition */
 export default function ScrollTop() {
   const [visible, setVisible] = useState(false)
 

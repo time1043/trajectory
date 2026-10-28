@@ -8,9 +8,9 @@ import CitationSup from './citation-sup'
 import { CitationContext, remarkCitations, type CitationContextValue } from './remark-citations'
 
 /**
- * markdown 渲染（react-markdown + gfm + 手写 prose 样式 + shiki 懒高亮）。
- * shiki 经动态 import 拆到独立 chunk，首个代码块渲染时才加载；
- * 高亮前先渲染纯 pre，加载完成后原位替换，不阻塞文档流。
+ * Markdown rendering (react-markdown + gfm + hand-rolled prose + lazy shiki).
+ * shiki ships in its own chunk via dynamic import, loaded on the first code
+ * block; plain pre renders first, then swaps in place without blocking.
  */
 
 let highlighterPromise: Promise<Highlighter> | null = null
@@ -57,7 +57,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           setHtml(out)
       }
       catch {
-        // 未支持的语言/主题加载失败 → 保持纯文本 pre
+        // unsupported language or theme failure -> keep the plain pre
       }
     })()
     return () => {

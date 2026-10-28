@@ -11,10 +11,10 @@ function groupKey(at: number): string {
 
 function groupLabel(at: number): string {
   const d = new Date(at)
-  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`
+  return `${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`
 }
 
-/** 按开始月份分组（antfu ListPosts 的按年分组同构）；rows 已按 updatedAt desc */
+/** Grouped by start month (antfu's post-list year grouping, homologous); rows arrive updatedAt-desc */
 export default function SessionList({ rows, search, activeId }: {
   rows: readonly TrajectoryRow[]
   search: SessionSearch
@@ -31,7 +31,7 @@ export default function SessionList({ rows, search, activeId }: {
     return [...map.values()]
   }, [rows])
 
-  // j/k 或点击后，活跃项滚动跟随
+  // follow the active item after j/k or a click
   useEffect(() => {
     if (!activeId)
       return

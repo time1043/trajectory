@@ -3,7 +3,7 @@ import { useCallback } from 'react'
 
 export type Theme = 'light' | 'dark'
 
-/** 初始值在 main.tsx 渲染前同步写好（防 FOUC），此处兜底 */
+/** Resolved synchronously before first paint in main.tsx; this is the fallback */
 function initialTheme(): Theme {
   if (typeof window === 'undefined')
     return 'dark'
@@ -26,7 +26,7 @@ export function useTheme() {
     const next = theme === 'dark' ? 'light' : 'dark'
     const apply = () => applyThemeClass(next)
 
-    // antfu 同款：从按钮坐标出发的圆形揭示（不支持时直切）
+    // circular reveal from the click position (antfu-style), plain switch when unsupported
     const doc = document as Document & {
       startViewTransition?: (cb: () => void) => { ready: Promise<void> }
     }

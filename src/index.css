@@ -30,6 +30,8 @@
   --tr-pv-claude: #d97757;
   --tr-pv-local: #a3a3a3;
 
+  --tr-error: #dc2626;
+
   --tr-scrollbar: #eeeeee;
   --tr-scrollbar-hover: #bbbbbb;
 
@@ -55,6 +57,8 @@
   --tr-scrollbar: #111111;
   --tr-scrollbar-hover: #222222;
 
+  --tr-error: #f87171;
+
   color-scheme: dark;
 }
 
@@ -74,6 +78,7 @@
   --color-pv-openai: var(--tr-pv-openai);
   --color-pv-claude: var(--tr-pv-claude);
   --color-pv-local: var(--tr-pv-local);
+  --color-error-strong: var(--tr-error);
 
   --radius-xs: 2px;
   --radius-sm: 4px;

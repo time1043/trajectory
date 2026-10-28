@@ -3,7 +3,7 @@ import type { Trajectory } from '../model/trajectory'
 import { buildTurns } from './turn-builder'
 
 export interface DailyActivity {
-  /** 'YYYY-MM-DD'（查看者本地时区） */
+  /** 'YYYY-MM-DD' in the viewer's local timezone */
   day: string
   turns: number
   trajectories: number
@@ -20,7 +20,7 @@ export interface GrowthOverview {
   currentStreak: number
   longestStreak: number
   daily: readonly DailyActivity[]
-  /** hour-of-day 分布（本地时间，24 桶），turn 起始时刻计数 */
+  /** Local-time hour-of-day histogram over turn start times */
   hourHistogram: readonly number[]
 }
 
@@ -44,7 +44,7 @@ function computeStreaks(days: readonly string[]): { current: number; longest: nu
     if (run > longest)
       longest = run
   }
-  // current：从今天（或昨天，宽容半程）往回数
+  // current streak: walk back from today, tolerating "not active yet today"
   const today = new Date()
   const todayStr = localDay(today.getTime())
   const set = new Set(sorted)
@@ -57,7 +57,7 @@ function computeStreaks(days: readonly string[]): { current: number; longest: nu
   return { current, longest }
 }
 
-/** 多来源合并计算。全部派生自 Trajectory（读模型 Turn），纯函数无 IO */
+/** Merged across sources; derived purely from Trajectory (via Turns), no IO */
 export function computeGrowthOverview(trajectories: readonly Trajectory[]): GrowthOverview {
   const byDay = new Map<string, DailyActivity>()
   const hourHistogram = new Array<number>(24).fill(0)

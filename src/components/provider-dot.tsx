@@ -1,6 +1,6 @@
 /**
- * provider 品牌色映射（展示层 token，不进 domain/adapters）。
- * antfu 式纪律：颜色只出现在"数据"上 —— UI chrome 永远单色。
+ * Provider brand colors (display-layer tokens, never domain/adapters).
+ * antfu discipline: color only appears on "data" — UI chrome stays monochrome.
  */
 const PROVIDER_COLORS: Record<string, string> = {
   deepseek: '#4D6BFE',

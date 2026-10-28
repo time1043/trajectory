@@ -1,13 +1,13 @@
 import type { TopicDef } from '@/domain/services/topics'
 
 /**
- * 主题字典（策略层）。中英 patterns，可手动运营；
- * 未命中的会话归 other（UI 只展示命中主题，other 不出现）。
+ * Topic dictionary (policy layer). Chinese + English patterns, hand-curated;
+ * unmatched conversations fall back to 'other' (the UI hides it).
  */
 export const topicDictionary: readonly TopicDef[] = [
   {
     id: 'coding',
-    label: '编程',
+    label: 'Coding',
     patterns: ['代码', '报错', 'bug', 'python', 'typescript', 'javascript', 'react', 'vue', 'css', 'html',
       'tailwind', 'vite', 'webpack', 'next.js', 'node', 'api', 'git', 'docker', 'kubernetes', 'linux',
       'sql', 'prisma', 'expo', 'android', 'ios', 'swift', 'rust', 'golang', 'java', '编译', '构建',
@@ -15,50 +15,50 @@ export const topicDictionary: readonly TopicDef[] = [
   },
   {
     id: 'ai-ml',
-    label: 'AI / 机器学习',
+    label: 'AI / ML',
     patterns: ['神经网络', '大模型', 'llm', 'gpt', 'prompt', 'embedding', '训练', '微调', 'fine-tun',
       'agent', 'rag', '深度学习', '机器学习', 'transformer', 'diffusion', '正则化', '过拟合', '推理模型',
       'deepseek', 'claude', 'openai', 'mcp', 'tokenizer'],
   },
   {
     id: 'translate',
-    label: '翻译',
+    label: 'Translation',
     patterns: ['翻译', 'translate', 'translation', '译成', '中译英', '英译中', '润色这段'],
   },
   {
     id: 'writing',
-    label: '写作',
+    label: 'Writing',
     patterns: ['写一篇', '文章', '文案', '标题', '大纲', '草稿', '改写', '公众号', '推文', '简历',
       '个人陈述', '周报', '总结一下写', 'email', '邮件', 'markdown 排版'],
   },
   {
     id: 'learning',
-    label: '学习 / 概念',
+    label: 'Learning',
     patterns: ['解释一下', '是什么', '什么是', '区别', '原理', '教程', '入门', '学习', '课程',
       '总结', '笔记', '理解', '为什么', '如何理解', '基础', '概念', 'crash course'],
   },
   {
     id: 'devops',
-    label: '运维 / 配置',
+    label: 'DevOps',
     patterns: ['部署', '服务器', 'nginx', 'dns', '路由器', 'openwrt', 'ssh', '防火墙', '端口',
       '虚拟机', 'ubuntu', 'centos', 'nas', '内网穿透', 'frp', 'cdn', 'ssl', '证书', '云服务', 'oss',
       '备份', '阿里云', '腾讯云', 'aws', 'azure', '_billing', '计费', '价格对比'],
   },
   {
     id: 'product',
-    label: '产品 / 商业',
+    label: 'Product / Business',
     patterns: ['商业模式', '市场', '竞品', '定价', '增长', '运营', '用户需求', '产品经理', '创业',
       '估值', '融资', '行业', '调研', 'swot', '山姆', '战略'],
   },
   {
     id: 'life',
-    label: '生活',
+    label: 'Life',
     patterns: ['推荐', '哪家', '好不好', '值得买', '健康', '运动', '睡眠', '食谱', '旅行', '攻略',
       '天气', '购物', '租房', '搬家', '体检', '保险', '理财', '基金', '股票', '汇率'],
   },
   {
     id: 'tools',
-    label: '工具 / 效率',
+    label: 'Tools',
     patterns: ['obsidian', 'notion', '快捷键', '插件', '浏览器', 'chrome', '扩展', '油猴',
       'workflow', '自动化', '效率', '配置一下', '怎么设置', '软件推荐', 'app 推荐'],
   },

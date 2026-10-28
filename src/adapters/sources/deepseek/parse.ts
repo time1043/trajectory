@@ -9,7 +9,7 @@ import type { RawConversation, RawFragment, RawUser } from './types'
 const CONVERSATIONS_FILE = 'conversations.json'
 const USER_FILE = 'user.json'
 
-/** 全库实测：user/assistant 片段从不在同一条 message 混排，据此推断角色 */
+// Data audit: user/assistant fragments never mix within one message
 function roleOf(fragments: RawFragment[]): MessageNode['role'] {
   return fragments.some(f => f.type === 'REQUEST' || f.type === 'FILE') ? 'user' : 'assistant'
 }
@@ -49,28 +49,11 @@ function maskEmail(email: string): string {
   const [local, domain] = email.split('@')
   if (!domain)
     return '***'
-  const head = local.slice(0, 3)
-  return `${head}****@${domain}`
+  return `${local.slice(0, 3)}****@${domain}`
 }
 
 function maskPhone(phone: string): string {
   return phone.length >= 7 ? `${phone.slice(0, 3)}****${phone.slice(-3)}` : '***'
-}
-
-function buildProfile(raw: RawUser | undefined): PersonaProfile | null {
-  if (!raw)
-    return null
-  const oauthName = raw.oauth_profiles
-    .map(p => p.profile_json)
-    .map(json => safeParse(json))
-    .find(profile => !!profile?.name)?.name as string | undefined
-  return {
-    displayName: oauthName ?? raw.user_id.slice(0, 8),
-    identifiers: [
-      ...(raw.email ? [maskEmail(raw.email)] : []),
-      ...(raw.mobile?.mobile_number ? [maskPhone(raw.mobile.mobile_number)] : []),
-    ],
-  }
 }
 
 function safeParse(json: string): { name?: string } | undefined {
@@ -79,6 +62,21 @@ function safeParse(json: string): { name?: string } | undefined {
   }
   catch {
     return undefined
+  }
+}
+
+function buildProfile(raw: RawUser | undefined): PersonaProfile | null {
+  if (!raw)
+    return null
+  const oauthName = raw.oauth_profiles
+    .map(p => safeParse(p.profile_json))
+    .find(profile => !!profile?.name)?.name as string | undefined
+  return {
+    displayName: oauthName ?? raw.user_id.slice(0, 8),
+    identifiers: [
+      ...(raw.email ? [maskEmail(raw.email)] : []),
+      ...(raw.mobile?.mobile_number ? [maskPhone(raw.mobile.mobile_number)] : []),
+    ],
   }
 }
 
@@ -110,14 +108,14 @@ export function parseDeepseek(manifest: SourceManifest, files: Map<string, Array
         if (part.kind === 'unknown')
           unknownPartCounts[part.rawType] = (unknownPartCounts[part.rawType] ?? 0) + 1
       }
-      // childIds 按 at 升序（不变量 I4；导出无此保证时在此修复）
+      // childIds ascending by at (I4; normalized here, the export does not guarantee it)
       const childIds = [...rawNode.children].sort(
         (a, b) => (raw.mapping[a]?.message ? toEpochMs(raw.mapping[a].message!.inserted_at) : 0)
           - (raw.mapping[b]?.message ? toEpochMs(raw.mapping[b].message!.inserted_at) : 0),
       )
       nodes.set(nodeId, {
         id: nodeId,
-        // 原 root 哨兵抹除：root 的孩子成为顶层节点（不变量 I2）
+        // root's children become top-level nodes (I2: the sentinel is erased)
         parentId: rawNode.parent === 'root' || rawNode.parent === null ? null : rawNode.parent,
         childIds,
         role: roleOf(rawNode.message.fragments),
@@ -143,12 +141,11 @@ export function parseDeepseek(manifest: SourceManifest, files: Map<string, Array
     })
   }
 
-  const source: ParsedSource = {
+  return {
     sourceId: 'deepseek',
     label: 'DeepSeek',
     profile,
     trajectories,
     diagnostics: { unknownPartCounts, invariantViolations },
   }
-  return source
 }

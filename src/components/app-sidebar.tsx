@@ -61,10 +61,10 @@ export default function AppSidebar() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-mono text-[11px] text-faint">
             <Kbd>⌘K</Kbd>
-            <span>搜索</span>
+            <span>search</span>
             <Kbd>j</Kbd>
             <Kbd>k</Kbd>
-            <span>移动</span>
+            <span>move</span>
           </div>
           <ThemeController />
         </div>

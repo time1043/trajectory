@@ -4,7 +4,7 @@ import { buildTurns } from '@/domain/services/turn-builder'
 import { OTHER_TOPIC, assignTopic } from '@/domain/services/topics'
 import { topicDictionary } from '@/adapters/topics/dictionary'
 
-/** topic id → 中文标签；未命中（other）返回 undefined（UI 不渲染） */
+/** topic id -> display label; unmatched ('other') returns undefined and the UI hides it */
 export function topicLabel(id: string): string | undefined {
   if (id === OTHER_TOPIC)
     return undefined
@@ -12,8 +12,8 @@ export function topicLabel(id: string): string | undefined {
 }
 
 /**
- * 列表/面板消费的轻量行。渲染 520 行时绝不触碰 nodes Map；
- * 字段全部在 ingest 期预计算。
+ * Lightweight rows for lists and panels — rendering 520 rows must never touch
+ * the node maps, so everything here is precomputed at ingest time.
  */
 export interface TrajectoryRow {
   readonly id: TrajectoryId
@@ -21,21 +21,20 @@ export interface TrajectoryRow {
   readonly title: string
   readonly startedAt: EpochMs
   readonly updatedAt: EpochMs
-  /** 活跃路径上的 Turn 数 */
   readonly turnCount: number
-  /** 活跃路径上含 message 的节点数（"消息数"口径） */
+  /** Message-node count on the active path */
   readonly msgCount: number
-  /** 命中的主题 id；'other' 表示未命中（UI 不展示） */
+  /** Matched topic id; 'other' means unmatched (hidden in UI) */
   readonly primaryTopic: string
 }
 
 export interface SourceDerived {
   readonly rows: readonly TrajectoryRow[]
-  /** ⌘K 检索用：title + 首条用户消息（上游已过 sanitize 边界） */
+  /** Palette search text: title + first user prompt (upstream of the sanitizer boundary) */
   readonly paletteText: ReadonlyMap<TrajectoryId, string>
 }
 
-/** 活跃路径上第一个 user 节点的首个 text 片段 */
+/** First text fragment of the first user node on the active path */
 export function firstUserText(t: Trajectory): string {
   for (const nodeId of t.activePath) {
     const node = t.nodes.get(nodeId)

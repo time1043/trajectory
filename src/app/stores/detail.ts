@@ -9,7 +9,7 @@ import { buildDocumentView } from '@/domain/services/document-view'
 import { allTrajectoriesAtom } from './data'
 import { atomFamily } from '@/lib/atom-family'
 
-/** 用户切过的变体路径覆盖（只存显式切换过的会话；回到默认态时移除条目） */
+/** Variant paths the user explicitly switched to (only overridden conversations are stored) */
 export const variantPathsAtom = atom(new Map<TrajectoryId, readonly NodeId[]>())
 
 export const setVariantPathAtom = atom(
@@ -30,7 +30,7 @@ export const trajectoryByIdFamily = atomFamily((id: TrajectoryId) =>
     return trajectories.find(t => t.id === id) ?? null
   }))
 
-/** 详情页文档流读模型：变体覆盖路径参与计算，切换变体 = 写 variantPathsAtom */
+/** Reading model for the detail page; variant overrides participate, switching = write variantPathsAtom */
 export const documentViewFamily = atomFamily((id: TrajectoryId) =>
   atom(async (get): Promise<DocumentView | null> => {
     const trajectory = await get(trajectoryByIdFamily(id))
@@ -40,7 +40,7 @@ export const documentViewFamily = atomFamily((id: TrajectoryId) =>
     return buildDocumentView(trajectory, override)
   }))
 
-/** 变体切换 hook：纯函数计算新路径后写入 atom；UI 层不触碰节点遍历 */
+/** Pure variant switch: compute the new path, store it; the UI never traverses nodes itself */
 export function useVariantSwitcher(trajId: TrajectoryId) {
   const trajectory = useAtomValue(trajectoryByIdFamily(trajId))
   const setVariantPath = useSetAtom(setVariantPathAtom)

@@ -4,38 +4,35 @@ import type { Part, WebResult } from '../model/part'
 import type { Trajectory } from '../model/trajectory'
 
 /**
- * Turn — 从路径线性化的分析单元（读模型）。仅供 analytics/streak/统计消费；
- * 会话详情的文档流消费 document-view.ts 的 DocumentView，两套粒度各司其职。
+ * Turn — analytics read model (streaks, activity, counts). The reading UI
+ * consumes document-view's DocumentView instead; two granularities, two jobs.
  *
- * 口径：
- * - 一个 Turn 从路径上一个 user 节点开始；连续 user 节点（改写重发链）并入同一 Turn；
- * - 直到下一个 user 节点前的所有 assistant 节点归入 outputs；
- * - 路径途经节点的非活跃 sibling 子树统一记为 variant（改写重发与重新生成不做语义区分）。
+ * Rules: a turn starts at a user node; consecutive user nodes (question
+ * rewrites) merge into the same turn; assistant nodes until the next user
+ * node are its outputs; non-active sibling subtrees at forks are variants —
+ * rewrites and regenerations are not distinguished.
  */
 export interface Turn {
   readonly index: number
-  /** ≥1，时间升序；主显示取最后一个，历史改写全部保留（不可丢弃） */
+  /** Ascending, >= 1; the last one is the live input, earlier ones are kept history */
   readonly inputNodeIds: readonly NodeId[]
-  /** 可为 0（用户发了但无回复） */
+  /** May be empty (user sent, no reply) */
   readonly outputNodeIds: readonly NodeId[]
-  /** 分支点上的兄弟子树（siblingOf 是活跃路径节点） */
   readonly variants: readonly VariantRef[]
-  /** 本轮输入到首个输出的真实耗时；无输出或时钟回拨为 null */
+  /** Real input -> first output latency; null without an output or on clock rollback */
   readonly totalLatencyMs: number | null
-  /** 路径顺序上本轮内的全部搜索结果（citation 的第一优先解析窗口） */
+  /** All search results within the turn, path order (first-priority citation window) */
   readonly searchWindow: readonly WebResult[]
-  /** 文本量估算（字符数），供懒渲染占位防跳动 */
+  /** Approx text volume, for lazy-render placeholders */
   readonly approxChars: number
 }
 
 export interface VariantRef {
-  /** 变体子树入口 */
   readonly nodeId: NodeId
-  /** 它是路径上哪个节点的兄弟 */
   readonly siblingOf: NodeId
 }
 
-/** 从指定节点沿"末位 child"走到叶，返回完整路径（祖先由调用方拼接） */
+/** Walk "last child" from a node down to a leaf (ancestors are the caller's job) */
 export function activePathFrom(t: Trajectory, start: NodeId): readonly NodeId[] {
   const path: NodeId[] = []
   const seen = new Set<NodeId>()
@@ -53,9 +50,10 @@ export function activePathFrom(t: Trajectory, start: NodeId): readonly NodeId[] 
 }
 
 /**
- * 节点所在的完整兄弟序列（含自身，按 at 升序）。
- * 顶层节点视为"虚拟 root"的孩子——52/520 会话的分支在开题处，
- * adapter 抹掉 root 哨兵后，顶层兄弟关系必须在这里重建。
+ * Full sibling sequence containing the node itself, ascending by `at`.
+ * Top-level nodes are children of a virtual root — 52/520 deepseek
+ * conversations branch at the opening question, and the erased root sentinel
+ * loses that relation, so it is rebuilt here.
  */
 export function orderedSiblingsOf(t: Trajectory, nodeId: NodeId): readonly NodeId[] {
   const node = t.nodes.get(nodeId)
@@ -70,7 +68,7 @@ export function orderedSiblingsOf(t: Trajectory, nodeId: NodeId): readonly NodeI
   return t.nodes.get(node.parentId)?.childIds ?? []
 }
 
-/** 分页器信息（1-based）；无分支返回 null */
+/** Pager info (1-based); null when there is no branch */
 export function variantInfoOf(t: Trajectory, nodeId: NodeId): { index: number, count: number } | null {
   const ordered = orderedSiblingsOf(t, nodeId)
   if (ordered.length <= 1)
@@ -80,15 +78,16 @@ export function variantInfoOf(t: Trajectory, nodeId: NodeId): { index: number, c
 }
 
 /**
- * 切换变体：把路径中 siblingOf 的位置替换为变体子树。
- * 变体子树自身的分支延续其默认活跃路径；切换点之后原路径的后续选择一并丢弃
- * （它们属于被抛弃的子树）。前缀（切换点之前）保持逐节点不变——UI memo 依赖这一点。
+ * Swap a variant subtree into the path. The variant subtree continues on its
+ * own default active path; choices below the switch point belong to the
+ * discarded subtree and are dropped. The prefix before the fork stays
+ * node-identical — UI memoization depends on that.
  */
 export function switchVariant(t: Trajectory, currentPath: readonly NodeId[], variant: VariantRef): readonly NodeId[] {
   const branchNode = t.nodes.get(variant.siblingOf)
   if (!branchNode)
     return t.activePath
-  // 顶层分支：前缀为空，直接从变体子树展开
+  // top-level fork: empty prefix, expand from the variant subtree
   if (branchNode.parentId === null)
     return activePathFrom(t, variant.nodeId)
   const prefix: NodeId[] = []
@@ -97,7 +96,6 @@ export function switchVariant(t: Trajectory, currentPath: readonly NodeId[], var
     if (id === variant.siblingOf)
       break
   }
-  // 去掉分支节点本身，从其父级的另一个孩子重新展开
   prefix.pop()
   return [...prefix, ...activePathFrom(t, variant.nodeId)]
 }
@@ -156,12 +154,11 @@ export function buildTurns(t: Trajectory, path?: readonly NodeId[]): readonly Tu
     if (!node)
       continue
 
-    // user 节点开启新 Turn；变体属于"它所在的 Turn"，
-    // 所以必须先 flush 再收集，否则会记进上一个 Turn
+    // a user node opens a new turn; variants belong to the turn they sit in,
+    // so flush first — otherwise they land in the previous turn
     if (node.role === 'user')
       flush()
 
-    // 路径节点存在兄弟分支（含顶层虚拟 root 分支）→ 记为变体
     for (const siblingId of orderedSiblingsOf(t, nodeId)) {
       if (siblingId !== nodeId)
         variants.push({ nodeId: siblingId, siblingOf: nodeId })
@@ -173,7 +170,7 @@ export function buildTurns(t: Trajectory, path?: readonly NodeId[]): readonly Tu
     }
     else {
       if (!inputNodeIds.length) {
-        // 罕见：路径以 assistant 开头（异常导出）——容错为独立 turn
+        // rare: path starts with an assistant node (malformed export)
         inputNodeIds.push(node.id)
       }
       else {

@@ -42,7 +42,7 @@ function toDay(d: Date): string {
 
 function mondayOf(d: Date): Date {
   const result = new Date(d)
-  const offset = (result.getDay() + 6) % 7 // Monday=0
+  const offset = (result.getDay() + 6) % 7 // Monday = 0
   result.setDate(result.getDate() - offset)
   result.setHours(0, 0, 0, 0)
   return result
@@ -52,11 +52,13 @@ function formatLabel(d: Date): string {
   return `${d.getFullYear()}.${`${d.getMonth() + 1}`.padStart(2, '0')}`
 }
 
-const MONTH_SHORT = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /**
- * GitHub 式热力图，"轨迹年"拆行：从首个活动日起锚，每行 53 周，
- * 行标签 `2024.10 →`。数据 <1 年退化为单行左对齐。
+ * GitHub-style heatmap, rows split by "trajectory years": 53-week rows anchored
+ * at the first activity month (`2024.10 ->`) instead of calendar years — no
+ * ragged short rows, and rows read as growth years. Under one year of data it
+ * degrades to a single left-aligned row.
  */
 export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
   daily: readonly DailyActivity[]
@@ -71,7 +73,7 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
     const counts = new Map(daily.map(d => [d.day, d.turns]))
 
     const anchor = mondayOf(new Date(firstAt))
-    anchor.setDate(1) // 首活动月月初，再 snap 回周一
+    anchor.setDate(1) // first day of the first active month, snapped back to Monday
     const rowStarts: Date[] = []
     const rowCount = Math.max(1, Math.ceil((lastAt - anchor.getTime()) / DAY / (7 * WEEKS_PER_ROW)))
     for (let r = 0; r < rowCount; r++) {
@@ -103,7 +105,7 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
           cells.push({ day, count, level: levelOf(count), future })
         }
 
-        // 月份标签：换月才标，且与上一个标签至少隔 3 周，避免文字重叠
+        // label on month change, at least 3 weeks after the previous one, or the text overlaps
         const month = weekStart.getMonth()
         const label = month !== prevMonth && w < WEEKS_PER_ROW - 1 && w - lastLabelWeek >= 3
           ? MONTH_SHORT[month]

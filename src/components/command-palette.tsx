@@ -20,7 +20,7 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
-  // render 期调整状态（React 推荐模式，compiler 友好）：打开即重置
+  // adjust state during render (React-recommended, compiler-friendly): reset on open
   const [prevOpen, setPrevOpen] = useState(open)
   if (open !== prevOpen) {
     setPrevOpen(open)
@@ -35,12 +35,6 @@ export default function CommandPalette() {
     setSelected(0)
   }
 
-  // DOM 聚焦是外部系统同步，允许走 effect
-  useEffect(() => {
-    if (open)
-      requestAnimationFrame(() => inputRef.current?.focus())
-  }, [open])
-
   const results = useMemo(() => {
     const scored = paletteIndex
       .map(item => ({ item, score: scorePaletteItem(item, query) }))
@@ -48,6 +42,12 @@ export default function CommandPalette() {
       .sort((a, b) => b.score - a.score || b.item.row.updatedAt - a.item.row.updatedAt)
     return scored.slice(0, MAX_RESULTS).map(entry => entry.item)
   }, [paletteIndex, query])
+
+  // DOM focus is external-system sync, so an effect is fine here
+  useEffect(() => {
+    if (open)
+      requestAnimationFrame(() => inputRef.current?.focus())
+  }, [open])
 
   if (!open)
     return null
@@ -88,7 +88,7 @@ export default function CommandPalette() {
                 setOpen(false)
               }
             }}
-            placeholder="搜索会话（标题 + 首条提问）…"
+            placeholder="Search sessions (title + first prompt)…"
             className="w-full bg-transparent text-sm text-hi outline-none placeholder:text-faint"
           />
           <Kbd>esc</Kbd>
@@ -111,7 +111,7 @@ export default function CommandPalette() {
                   <ProviderDot sourceId={item.row.sourceId} />
                   <span className="min-w-0 flex-1 truncate text-sm text-hi">{item.row.title}</span>
                   <span className="shrink-0 font-mono text-xs text-low">
-                    {new Date(item.row.updatedAt).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}
+                    {new Date(item.row.updatedAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}
                   </span>
                 </button>
               ))}
@@ -121,7 +121,7 @@ export default function CommandPalette() {
   )
 }
 
-/** 侧栏顶部的搜索按钮（与 ⌘K 等价入口） */
+/** Sidebar search button, equivalent to ⌘K */
 export function PaletteTrigger() {
   const [, setOpen] = useAtom(paletteOpenAtom)
   return (
@@ -131,7 +131,7 @@ export function PaletteTrigger() {
       className="flex w-full items-center gap-2 rounded-sm border border-line px-2.5 py-1.5 text-left text-low transition-colors duration-200 hover:border-line-strong hover:text-mid"
     >
       <IconSearch className="size-3.5" />
-      <span className="flex-1 text-xs">搜索…</span>
+      <span className="flex-1 text-xs">Search…</span>
       <Kbd>⌘K</Kbd>
     </button>
   )

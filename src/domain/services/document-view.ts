@@ -5,24 +5,24 @@ import type { Trajectory } from '../model/trajectory'
 import { variantInfoOf } from './turn-builder'
 
 /**
- * DocumentView — 会话详情的文档流读模型（与 analytics 用的 Turn 各司其职）。
- * UI 层禁止自建节点遍历，一律消费这里。
+ * DocumentView — the reading UI's model over the active path (Turn serves
+ * analytics only). The UI must not traverse nodes itself; it consumes this.
  */
 export interface DocBlock {
   readonly node: MessageNode
-  /** 父节点有多个 child 时标记分页器位置（1-based）；变体子树内部节点天然为 null */
+  /** Pager position (1-based) when the parent has several children; inner variant nodes are naturally null */
   readonly variant: { readonly index: number; readonly count: number } | null
-  /** 本轮输入 → 该回复的真实耗时；user 块或无时间差为 null */
+  /** Real turn-input -> this reply latency; null on user blocks */
   readonly latencyMs: number | null
-  /** 改写链深度：0=原始提问，1..n=被改写重发的历史版本（数据保留，视觉降权） */
+  /** Rewrite depth: 0 = original question, 1..n = replaced resubmissions (kept, visually downgraded) */
   readonly chainIndex: number
 }
 
 export interface DocumentView {
   readonly blocks: readonly DocBlock[]
-  /** 会话级引用注册表：路径上全部搜索结果按 url 去重、按首次出现顺序编号（展示 1-based） */
+  /** Session-level reference registry: path search results deduped by url, first-appearance order */
   readonly references: readonly WebResult[]
-  /** 每个含正文的 assistant 节点的 citation 解析窗口（本轮内的搜索结果，路径序） */
+  /** Citation resolution window per assistant node carrying text (this turn's searches, path order) */
   readonly citationWindows: ReadonlyMap<NodeId, readonly WebResult[]>
 }
 
@@ -45,7 +45,7 @@ export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): Docu
 
     if (node.role === 'user') {
       turnStartAt = node.at
-      // 连续 user 节点（父节点也是 user）= 改写重发链
+      // consecutive user nodes (parent is also a user) form the rewrite chain
       const parent = node.parentId !== null ? t.nodes.get(node.parentId) : undefined
       chainIndex = parent?.role === 'user' ? chainIndex + 1 : 0
     }
@@ -54,7 +54,6 @@ export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): Docu
 
     for (const part of node.parts) {
       if (part.kind === 'search') {
-        // 窗口只增不减；去重服务于引用注册表，窗口本身保留原始顺序
         for (const r of part.results) {
           window.push(r)
           if (!seenUrls.has(r.url)) {
@@ -85,15 +84,15 @@ export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): Docu
 
 export interface ResolvedCitation {
   readonly result: WebResult
-  /** 注册表中的稳定编号（1-based） */
+  /** Stable registry number (1-based) */
   readonly refIndex: number
 }
 
 /**
- * Citation 两级解析（实测归纳：编号是对"本轮搜索窗口"的 1-based 索引）：
- * 1. 在本 Turn 的搜索窗口内按序取第 N 条，再映射到会话注册表的稳定编号
- * 2. 超界/无窗口时若 N 恰好落在注册表长度内，按注册表兜底
- * 3. 仍查不到 → 返回 null，UI 渲染为降级纯文本标记
+ * Two-level citation resolution (empirical: numbers index the turn's search
+ * window, 1-based): resolve within the turn window, map the hit to the stable
+ * session registry number, fall back to the registry itself, else null — the
+ * UI renders a degraded plain marker.
  */
 export function resolveCitation(
   n: number,

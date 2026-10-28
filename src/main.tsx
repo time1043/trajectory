@@ -7,7 +7,7 @@ import { applyThemeClass } from './app/stores/theme'
 import './index.css'
 import { routeTree } from './routeTree.gen'
 
-// 主题在首帧前同步应用，防 FOUC
+// resolve the theme synchronously before first paint to avoid FOUC
 applyThemeClass(
   localStorage.getItem('trajectory.theme') === 'dark'
     || (localStorage.getItem('trajectory.theme') !== 'light'

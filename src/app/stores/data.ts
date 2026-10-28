@@ -9,7 +9,7 @@ import type { SourceDerived } from '@/app/derive'
 import { detectAdapter, ingest } from '@/app/ingest'
 import { atomFamily } from '@/lib/atom-family'
 
-/** HMR / 手动刷新时 bump；下游 async atom 依赖它自动重取 */
+/** Bumped on HMR / manual refresh; downstream async atoms refetch automatically */
 export const dataVersionAtom = atom(0)
 
 export const sourcesManifestAtom = atom(async (get) => {
@@ -40,9 +40,9 @@ export type SourceLoadResult = LoadedSource | UnrecognizedSource | SourceLoadErr
 const sanitizer = createRegexSanitizer({ sanitizeText: false })
 
 /**
- * 单来源加载：detect → ingest(parse→sanitize→invariants→freeze) → derive。
- * atomFamily 按 dirName 缓存；dataVersion 变化时依赖链整体重算，
- * 旧值交由 GC——dev 工具单机数据 <40MB，不写 LRU。
+ * Per-source load: detect -> ingest -> derive. atomFamily caches by dirName;
+ * a dataVersion bump recomputes the whole dependency chain and old values go
+ * to GC — a local dev tool with <100MB data does not need an LRU.
  */
 export const sourceDataFamily = atomFamily((dirName: string) =>
   atom(async (get): Promise<SourceLoadResult> => {
@@ -69,13 +69,13 @@ export const allSourcesDataAtom = atom(async (get) => {
   return Promise.all(manifests.map(m => get(sourceDataFamily(m.dirName))))
 })
 
-/** 多来源合并后的全部 Trajectory（readonly；冻结由 ingest 保证） */
+/** All trajectories merged across sources (frozen by ingest) */
 export const allTrajectoriesAtom = atom(async (get) => {
   const sources = await get(allSourcesDataAtom)
   return sources.flatMap(s => (s.status === 'ok' ? s.parsed.trajectories : []))
 })
 
-/** 合并轻量行（updatedAt desc；deriveSource 内已排序，合并后重排） */
+/** Merged lightweight rows, updatedAt descending */
 export const allRowsAtom = atom(async (get) => {
   const sources = await get(allSourcesDataAtom)
   return sources
@@ -83,7 +83,7 @@ export const allRowsAtom = atom(async (get) => {
     .sort((a, b) => b.updatedAt - a.updatedAt)
 })
 
-/** 来源 meta（侧栏 provider 圆点/标签），含未识别目录 */
+/** Source metadata for the sidebar (provider dots / labels), unrecognized dirs included */
 export const sourceMetasAtom = atom(async (get) => {
   const sources = await get(allSourcesDataAtom)
   return sources.map((s) => {

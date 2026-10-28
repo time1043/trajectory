@@ -4,14 +4,14 @@ import type { Trajectory } from './trajectory'
 import { hasForeignParts } from './trajectory'
 
 /**
- * 领域不变量。adapter 产出后由 ingest 管道调用；
- * 违例不 throw（导出格式不可控，crash 一个坏会话不如跳过并记录），
- * 收集为字符串进 ParseDiagnostics.invariantViolations。
+ * Domain invariants, checked by the ingest pipeline after adapter output.
+ * Violations are collected, never thrown — exports are uncontrollable, and
+ * skipping one bad conversation beats crashing the whole source.
  */
 export function checkInvariants(t: Trajectory): readonly string[] {
   const violations: string[] = []
 
-  // I1 单棵连通有穷树、无环：从顶层出发可达节点数 === nodes.size
+  // I1 single connected acyclic tree: every node reachable from a top-level one
   const topLevels = [...t.nodes.values()].filter(n => n.parentId === null)
   if (topLevels.length === 0)
     violations.push(`${t.id}: no top-level node`)
@@ -34,13 +34,13 @@ export function checkInvariants(t: Trajectory): readonly string[] {
   if (reachable.size !== t.nodes.size)
     violations.push(`${t.id}: ${t.nodes.size - reachable.size} unreachable node(s)`)
 
-  // I3 角色与片段种类一致
+  // I3 role / fragment-kind consistency
   for (const node of t.nodes.values()) {
     if (hasForeignParts(node))
       violations.push(`${t.id}: user node ${node.id} carries assistant-side parts`)
   }
 
-  // I4 childIds 按 at 升序
+  // I4 childIds ascending by at
   for (const node of t.nodes.values()) {
     for (let i = 1; i < node.childIds.length; i++) {
       const prev = t.nodes.get(node.childIds[i - 1])
@@ -50,11 +50,11 @@ export function checkInvariants(t: Trajectory): readonly string[] {
     }
   }
 
-  // I5 时间可解析且 startedAt <= updatedAt
+  // I5 startedAt <= updatedAt
   if (!(t.startedAt <= t.updatedAt))
     violations.push(`${t.id}: startedAt > updatedAt`)
 
-  // I2 activePath 从某顶层节点连续可达且全部存在
+  // I6 activePath starts at a top-level node and stays parent-connected
   if (t.activePath.length) {
     const first = t.nodes.get(t.activePath[0])
     if (!first || first.parentId !== null)
@@ -69,7 +69,7 @@ export function checkInvariants(t: Trajectory): readonly string[] {
   return violations
 }
 
-/** activePath：从每个分支点取末位 child（root 的多个顶层子节点同样取末位） */
+/** Default active path: last child at every fork, top-level forks included */
 export function defaultActivePath(nodes: ReadonlyMap<NodeId, MessageNode>): readonly NodeId[] {
   const roots = [...nodes.values()]
     .filter(n => n.parentId === null)

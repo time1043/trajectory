@@ -25,8 +25,9 @@ function SessionsLayout() {
   const rows = useSessionRows(search)
   const [query, setQuery] = useState(search.q ?? '')
 
-  // 输入防抖 → URL（真源）。必须用 history.replace 保留完整 pathname：
-  // route-bound navigate 会把布局路由当作目标，丢掉 /sessions/$id 子路由
+  // debounced input -> URL (the truth). Must use history.replace to keep the
+  // full pathname: a route-bound navigate targets the layout route and drops
+  // the /sessions/$id child.
   useEffect(() => {
     const timer = setTimeout(() => {
       const params = new URLSearchParams()
@@ -42,14 +43,14 @@ function SessionsLayout() {
     return () => clearTimeout(timer)
   }, [query, search.from, search.to, router])
 
-  // 外部变化（热力图跳转/返回）→ 输入框回显；render 期调整，不走 effect
+  // external changes (heatmap jump, back button) -> echo into the input; render-phase adjust
   const [prevQ, setPrevQ] = useState(search.q)
   if (search.q !== prevQ) {
     setPrevQ(search.q)
     setQuery(search.q ?? '')
   }
 
-  // j/k 在过滤列表上移动；palette 打开或输入时跳过
+  // j/k moves across the filtered list; skip when the palette is open or typing
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (paletteOpen || e.metaKey || e.ctrlKey || e.altKey)
@@ -89,7 +90,7 @@ function SessionsLayout() {
               if (e.key === 'Enter' && rows[0])
                 void navigate({ to: '/sessions/$id', params: { id: rows[0].id }, search: (prev: SessionSearch) => prev })
             }}
-            placeholder="搜索标题与提问…"
+            placeholder="Search title & prompt…"
             className="w-full border-b border-line bg-transparent py-1.5 text-sm text-hi outline-none transition-colors duration-200 placeholder:text-faint focus:border-accent"
           />
           <div className="mt-2 flex items-center justify-between font-mono text-xs text-low">
@@ -103,7 +104,7 @@ function SessionsLayout() {
                 type="button"
                 onClick={() => void navigate({ search: (prev: SessionSearch) => ({ q: prev.q }) })}
                 className="text-low transition-colors duration-200 hover:text-hi"
-                title="清除日期筛选"
+                title="Clear date filter"
               >
                 {search.from} ~ {search.to} ×
               </button>
@@ -125,7 +126,7 @@ function SessionsLayout() {
 }
 
 function SessionsSuspense() {
-  // useSessionRows 依赖 async atom，必须在 Suspense 内求值
+  // useSessionRows reads async atoms — must evaluate inside a Suspense boundary
   return (
     <Suspense fallback={<Loading />}>
       <SessionsLayout />

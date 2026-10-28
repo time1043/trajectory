@@ -59,7 +59,7 @@ function Dashboard() {
         </div>
 
         <section className="mt-12">
-          <SectionTitle>活跃度</SectionTitle>
+          <SectionTitle>Activity</SectionTitle>
           <div className="mt-5">
             <ActivityHeatmap daily={overview.daily} firstAt={overview.firstAt} lastAt={overview.lastAt} />
           </div>
@@ -67,7 +67,7 @@ function Dashboard() {
 
         <div className="mt-12 grid gap-12 lg:grid-cols-2">
           <section>
-            <SectionTitle>时段分布</SectionTitle>
+            <SectionTitle>Time of day</SectionTitle>
             <p className="mt-1 font-mono text-xs text-faint">hour of day · local time</p>
             <div className="mt-5">
               <HourDistribution histogram={overview.hourHistogram} />
@@ -75,7 +75,7 @@ function Dashboard() {
           </section>
 
           <section>
-            <SectionTitle>最近会话</SectionTitle>
+            <SectionTitle>Recent sessions</SectionTitle>
             <div className="mt-3">
               {rows.length === 0
                 ? <EmptyState />
@@ -87,11 +87,11 @@ function Dashboard() {
                   to="/sessions"
                   className="mt-3 inline-block font-mono text-xs text-low transition-colors duration-200 hover:text-hi"
                 >
-                  → 全部
+                  All
                   {' '}
                   {fmtInt(rows.length)}
                   {' '}
-                  个会话
+                  sessions →
                 </Link>
               )}
             </div>

@@ -7,7 +7,7 @@ import type { TrajectoryRow } from '@/app/derive'
 import EmptyState from '@/components/empty-state'
 import Loading from '@/components/loading'
 import ProviderDot from '@/components/provider-dot'
-import { fmtDate, fmtInt } from '@/lib/format'
+import { MONTH_SHORT, fmtDate, fmtInt } from '@/lib/format'
 
 export const Route = createFileRoute('/timeline')({
   component: () => (
@@ -21,7 +21,7 @@ function Timeline() {
   const rows = useAtomValue(allRowsAtom)
 
   const years = useMemo(() => {
-    // rows 已按 updatedAt desc；时间线按 startedAt 分组展示"怎么走过来的"
+    // rows arrive updatedAt-desc; the timeline groups by startedAt to read as "how it happened"
     const sorted = [...rows].sort((a, b) => b.startedAt - a.startedAt)
     const byYear = new Map<number, TrajectoryRow[]>()
     for (const row of sorted) {
@@ -87,17 +87,20 @@ function MonthGroups({ rows }: { rows: readonly TrajectoryRow[] }) {
     <div className="mt-4 space-y-6">
       {months.map(monthRows => (
         <div key={monthRows[0].startedAt}>
-          <div className="font-mono text-xs text-faint select-none">
-            {new Date(monthRows[0].startedAt).getFullYear()}
-            {' '}
-            年
-            {' '}
-            {new Date(monthRows[0].startedAt).getMonth() + 1}
-            {' '}
-            月 ·
-            {' '}
-            {monthRows.length}
-          </div>
+          {(() => {
+            const d = new Date(monthRows[0].startedAt)
+            return (
+              <div className="font-mono text-xs text-faint select-none">
+                {MONTH_SHORT[d.getMonth()]}
+                {' '}
+                {d.getFullYear()}
+                {' '}
+                ·
+                {' '}
+                {monthRows.length}
+              </div>
+            )
+          })()}
           <ul className="mt-2">
             {monthRows.map(row => (
               <li key={row.id} className="group flex items-baseline gap-3 py-1">

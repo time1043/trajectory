@@ -2,9 +2,9 @@ import type { ParsedSource } from '@/domain/model/trajectory'
 import type { Sanitizer } from '@/domain/ports/sanitizer'
 
 /**
- * RegexSanitizer — 文本脱敏的预备实现（email/手机号/中国大陆身份证）。
- * adapter 已在类型边界掩码 user.json 的 PII（PersonaProfile 无明文字段），
- * 因此默认管道不注入本实现；"脱敏分享"需求落地时在 ingest 调用处打开即可。
+ * Prepared text redaction (email / mainland phone / national id). The adapter
+ * already masks user-record PII at the type boundary, so the default pipeline
+ * does not inject this; arm it at the ingest call site when sharing lands.
  */
 const PATTERNS: readonly { re: RegExp, replace: string }[] = [
   { re: /[\w.+-]+@[\w-]+\.[\w.]+/g, replace: '[email]' },
