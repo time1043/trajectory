@@ -5,6 +5,8 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 
+import { trajectoryData } from './plugins/trajectory-data.ts'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -16,6 +18,7 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset(), 'jotai-babel/preset'] }),
     tailwindcss(),
+    trajectoryData(),
   ],
   resolve: {
     alias: {
