@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@shikijs/rehype": "^4.5.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-router": "^1.170.46",
     "@tanstack/react-router-devtools": "^1.167.2",
@@ -19,6 +20,9 @@
     "jotai-devtools": "^0.15.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "shiki": "^4.5.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
