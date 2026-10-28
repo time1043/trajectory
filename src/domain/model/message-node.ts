@@ -1,5 +1,4 @@
 import type { EpochMs, ModelId, NodeId } from './identity'
-import { partTextLength } from './part'
 import type { Part } from './part'
 
 /** Data audit: user/assistant fragments never mix within one message — role inference is reliable */
@@ -16,8 +15,4 @@ export interface MessageNode {
   readonly model: ModelId | null
   readonly at: EpochMs
   readonly parts: readonly Part[]
-}
-
-export function nodeTextLength(node: MessageNode): number {
-  return node.parts.reduce((sum, p) => sum + partTextLength(p), 0)
 }

@@ -1,4 +1,3 @@
-import type { SourceId } from '@/domain/model/identity'
 import { checkInvariants } from '@/domain/model/invariants'
 import type { ParsedSource } from '@/domain/model/trajectory'
 import type { Sanitizer } from '@/domain/ports/sanitizer'
@@ -49,7 +48,19 @@ export async function ingest(adapter: SourceAdapter, manifest: SourceManifest, s
 }
 
 function deepFreeze<T>(value: T): T {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+  if (value instanceof Map) {
+    Object.freeze(value)
+    for (const [key, item] of value) {
+      deepFreeze(key)
+      deepFreeze(item)
+    }
+  }
+  else if (value instanceof Set) {
+    Object.freeze(value)
+    for (const item of value)
+      deepFreeze(item)
+  }
+  else if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value)
     for (const key of Object.keys(value as Record<string, unknown>))
       deepFreeze((value as Record<string, unknown>)[key])
@@ -60,8 +71,4 @@ function deepFreeze<T>(value: T): T {
 /** First adapter that claims the manifest; null leaves the directory "unrecognized" instead of crashing */
 export function detectAdapter(adapters: readonly SourceAdapter[], manifest: SourceManifest): SourceAdapter | null {
   return adapters.find(a => a.detect(manifest)) ?? null
-}
-
-export function manifestSourceId(manifest: SourceManifest): SourceId {
-  return manifest.dirName.split('/').pop() ?? manifest.dirName
 }

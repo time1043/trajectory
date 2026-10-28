@@ -1,4 +1,3 @@
-import { atom } from 'jotai'
 import type { Atom } from 'jotai'
 
 /**
@@ -17,5 +16,3 @@ export function atomFamily<Param, A extends Atom<unknown>>(create: (param: Param
     return value
   }
 }
-
-export { atom }

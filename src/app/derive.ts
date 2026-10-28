@@ -22,8 +22,6 @@ export interface TrajectoryRow {
   readonly startedAt: EpochMs
   readonly updatedAt: EpochMs
   readonly turnCount: number
-  /** Message-node count on the active path */
-  readonly msgCount: number
   /** Matched topic id; 'other' means unmatched (hidden in UI) */
   readonly primaryTopic: string
 }
@@ -54,7 +52,6 @@ export function deriveSource(parsed: ParsedSource): SourceDerived {
   for (const t of parsed.trajectories) {
     const firstText = firstUserText(t)
     const turnCount = buildTurns(t).length
-    const msgCount = t.activePath.filter(id => t.nodes.has(id)).length
     paletteText.set(t.id, `${t.title}\n${firstText}`)
     rows.push({
       id: t.id,
@@ -63,7 +60,6 @@ export function deriveSource(parsed: ParsedSource): SourceDerived {
       startedAt: t.startedAt,
       updatedAt: t.updatedAt,
       turnCount,
-      msgCount,
       primaryTopic: assignTopic(topicDictionary, t.title, firstText),
     })
   }

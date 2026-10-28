@@ -1,4 +1,4 @@
-import { getDefaultStore, useSetAtom } from 'jotai'
+import { getDefaultStore } from 'jotai'
 
 import { DATA_API_HMR_EVENT } from '@/domain/ports/data-host'
 import { dataVersionAtom } from './stores/data'
@@ -11,9 +11,4 @@ export function setupDataHmr(): void {
   import.meta.hot.on(DATA_API_HMR_EVENT, () => {
     store.set(dataVersionAtom, v => v + 1)
   })
-}
-
-/** Manual refresh for the UI (error retries etc.) */
-export function useRefreshData() {
-  return useSetAtom(dataVersionAtom)
 }
