@@ -19,3 +19,12 @@ export type EpochMs = number
 export function trajectoryId(source: SourceId, rawId: string): TrajectoryId {
   return `${source}:${rawId}`
 }
+
+/** URL params -> internal id; the ':'-joined form never appears in a URL */
+export function trajectoryIdFromParts(
+  provider: string,
+  user: string,
+  sessionId: string,
+): TrajectoryId {
+  return `${provider}:${user}:${sessionId}`
+}

@@ -23,8 +23,8 @@ export default function SessionItem({
 }) {
   return (
     <Link
-      to="/sessions/$id"
-      params={{ id: row.id }}
+      to="/sessions/$source/$user/$session"
+      params={{ source: row.provider, user: row.user, session: row.sessionId }}
       search={search}
       className={`block border-l-2 py-2 pr-3 pl-3 transition-colors duration-150 ${
         active ? 'border-accent bg-elevated' : 'border-transparent hover:bg-elevated/60'

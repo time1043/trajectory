@@ -7,13 +7,15 @@ import { scorePaletteItem } from '@/app/stores/palette'
 
 function item(title: string, text: string): PaletteItem {
   const row = {
-    id: 't:1',
-    sourceId: 't',
+    id: 'test:t1:1',
+    sourceId: 'test:t1',
+    provider: 'test',
+    user: 't1',
+    sessionId: '1',
     title,
     startedAt: 0,
     updatedAt: 0,
     turnCount: 1,
-    msgCount: 1,
     primaryTopic: 'other',
   } as TrajectoryRow
   return { row, text: `${title}\n${text}` }

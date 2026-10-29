@@ -1,8 +1,8 @@
 import type { NodeId } from '@/domain/model/identity'
-import type { SourceIdentity } from '@/domain/ports/source-adapter'
 import type { MessageNode, Role } from '@/domain/model/message-node'
 import type { Part, ToolCallPayload } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
+import type { SourceIdentity } from '@/domain/ports/source-adapter'
 
 import { trajectoryId } from '@/domain/model/identity'
 

@@ -64,8 +64,8 @@ function SessionsLayout() {
       const next = rows[nextIdx]
       if (next && next.id !== id)
         void navigate({
-          to: '/sessions/$id',
-          params: { id: next.id },
+          to: '/sessions/$source/$user/$session',
+          params: { source: next.provider, user: next.user, session: next.sessionId },
           search: (prev: SessionSearch) => prev,
         })
     }
@@ -87,8 +87,12 @@ function SessionsLayout() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && rows[0])
                 void navigate({
-                  to: '/sessions/$id',
-                  params: { id: rows[0].id },
+                  to: '/sessions/$source/$user/$session',
+                  params: {
+                    source: rows[0].provider,
+                    user: rows[0].user,
+                    session: rows[0].sessionId,
+                  },
                   search: (prev: SessionSearch) => prev,
                 })
             }}

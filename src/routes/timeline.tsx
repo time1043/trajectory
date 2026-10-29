@@ -91,8 +91,8 @@ function MonthGroups({ rows }: { rows: readonly TrajectoryRow[] }) {
                   {fmtDate(row.startedAt).slice(5)}
                 </span>
                 <Link
-                  to="/sessions/$id"
-                  params={{ id: row.id }}
+                  to="/sessions/$source/$user/$session"
+                  params={{ source: row.provider, user: row.user, session: row.sessionId }}
                   className="min-w-0 flex-1 truncate text-sm text-mid transition-colors duration-200 group-hover:text-hi"
                 >
                   {row.title}

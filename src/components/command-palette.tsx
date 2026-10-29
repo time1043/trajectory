@@ -52,7 +52,10 @@ export default function CommandPalette() {
 
   const openItem = (item: PaletteItem) => {
     setOpen(false)
-    void navigate({ to: '/sessions/$id', params: { id: item.row.id } })
+    void navigate({
+      to: '/sessions/$source/$user/$session',
+      params: { source: item.row.provider, user: item.row.user, session: item.row.sessionId },
+    })
   }
 
   return (

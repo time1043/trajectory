@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
 
-import type { ModelId } from '@/domain/model/identity'
 import type { WebResult } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
 import type { DocBlock } from '@/domain/services/document-view'
@@ -12,14 +11,16 @@ import EmptyState from '@/components/empty-state'
 import { withSuspense } from '@/components/loading'
 import ProviderDot from '@/components/provider-dot'
 import { MessageBlock, ReferenceList } from '@/components/session-parts'
+import { trajectoryIdFromParts } from '@/domain/model/identity'
 import { fmtDate } from '@/lib/format'
 
-export const Route = createFileRoute('/sessions/$id')({
+export const Route = createFileRoute('/sessions/$source/$user/$session')({
   component: withSuspense(SessionDetail),
 })
 
 function SessionDetail() {
-  const { id } = Route.useParams()
+  const { source, user, session } = Route.useParams()
+  const id = trajectoryIdFromParts(source, user, session)
   const view = useAtomValue(documentViewFamily(id))
   const trajectory = useAtomValue(trajectoryByIdFamily(id))
 
@@ -42,14 +43,15 @@ interface ContentView {
   blocks: readonly DocBlock[]
   references: readonly WebResult[]
   citationWindows: ReadonlyMap<string, readonly WebResult[]>
-  models: readonly ModelId[]
+  models: readonly string[]
 }
 
 function SessionContent({ trajectory, blocks, references, citationWindows, models }: ContentView) {
   const switched = useAtomValue(variantPathsAtom).has(trajectory.id)
+  // recognized sources always hit; raw segments are the fallback for safety
   const sourceParts = useAtomValue(sourcePartsAtom).get(trajectory.sourceId) ?? {
-    providerLabel: trajectory.sourceId,
-    user: '',
+    providerLabel: trajectory.provider,
+    user: trajectory.user,
   }
   const userCount = blocks.filter((b) => b.node.role === 'user' && b.chainIndex === 0).length
 
@@ -66,7 +68,7 @@ function SessionContent({ trajectory, blocks, references, citationWindows, model
         <span className="text-faint">·</span>
         <span>{blocks.length} messages</span>
         <span className="text-faint">·</span>
-        <ProviderDot sourceId={trajectory.sourceId} />
+        <ProviderDot sourceId={trajectory.provider} />
         <span>{sourceParts.providerLabel}</span>
         {models.length > 0 && (
           <>

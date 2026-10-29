@@ -18,6 +18,9 @@ export function topicLabel(id: string): string | undefined {
 export interface TrajectoryRow {
   readonly id: TrajectoryId
   readonly sourceId: SourceId
+  readonly provider: string
+  readonly user: string
+  readonly sessionId: string
   readonly title: string
   readonly startedAt: EpochMs
   readonly updatedAt: EpochMs
@@ -55,6 +58,9 @@ export function deriveSource(parsed: ParsedSource): SourceDerived {
     rows.push({
       id: t.id,
       sourceId: t.sourceId,
+      provider: t.provider,
+      user: t.user,
+      sessionId: t.sessionId,
       title: t.title,
       startedAt: t.startedAt,
       updatedAt: t.updatedAt,
