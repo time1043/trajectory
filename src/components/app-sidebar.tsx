@@ -1,7 +1,15 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
 
+import type { SessionSearch } from '@/app/stores/session-filter'
+
 import { sourceMetasAtom } from '@/app/stores/data'
+import {
+  parseSourcesParam,
+  sourceKey,
+  stringifySourcesParam,
+  toggleSource,
+} from '@/app/stores/session-filter'
 import { PaletteTrigger } from '@/components/command-palette'
 import Kbd from '@/components/kbd'
 import ProviderDot from '@/components/provider-dot'
@@ -15,6 +23,20 @@ const NAV = [
 
 export default function AppSidebar() {
   const sourceMetas = useAtomValue(sourceMetasAtom)
+  const navigate = useNavigate()
+  // the sidebar renders on every route — read the filter straight off the location
+  const search = useSearch({ strict: false }) as { sources?: string }
+  const activeKeys = parseSourcesParam(search.sources) ?? []
+  const toggle = (provider: string, user: string) => {
+    const key = sourceKey(provider, user)
+    void navigate({
+      to: '/sessions',
+      search: (prev: SessionSearch) => ({
+        ...prev,
+        sources: stringifySourcesParam(toggleSource(parseSourcesParam(prev.sources), key)),
+      }),
+    })
+  }
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-base md:flex">
@@ -50,16 +72,24 @@ export default function AppSidebar() {
           Sources
         </div>
         <div className="mt-2 flex flex-col gap-0.5">
-          {sourceMetas.map((meta) => (
-            <div
-              key={meta.id}
-              className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-mid"
-            >
-              <ProviderDot sourceId={meta.id} />
-              <span className="min-w-0 flex-1 truncate">{meta.label}</span>
-              <span className="font-mono text-xs text-low">{meta.ok ? meta.count : '·'}</span>
-            </div>
-          ))}
+          {sourceMetas.map((meta) => {
+            const active = meta.ok && activeKeys.includes(sourceKey(meta.provider, meta.user))
+            return (
+              <button
+                key={meta.id}
+                type="button"
+                onClick={() => meta.ok && toggle(meta.provider, meta.user)}
+                className={`flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors duration-200 ${
+                  active ? 'bg-elevated text-hi' : 'text-mid hover:text-hi'
+                }`}
+                title={active ? 'Clear source filter' : 'Filter sessions by this source'}
+              >
+                <ProviderDot sourceId={meta.id} />
+                <span className="min-w-0 flex-1 truncate">{meta.label}</span>
+                <span className="font-mono text-xs text-low">{meta.ok ? meta.count : '·'}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 

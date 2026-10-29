@@ -2,14 +2,25 @@ import { Outlet, createFileRoute, useParams, useRouter } from '@tanstack/react-r
 import { useAtomValue } from 'jotai'
 import { useEffect, useState } from 'react'
 
+import type { SessionSearch } from '@/app/stores/session-filter'
+
+import { sourceMetasAtom } from '@/app/stores/data'
 import { paletteOpenAtom } from '@/app/stores/palette'
-import { useSessionRows, type SessionSearch } from '@/app/stores/sessions'
+import {
+  parseSourcesParam,
+  sourceKey,
+  stringifySourcesParam,
+  toggleSource,
+} from '@/app/stores/session-filter'
+import { useSessionRows } from '@/app/stores/sessions'
 import { withSuspense } from '@/components/loading'
 import SessionList from '@/components/session-list'
 
 export const Route = createFileRoute('/sessions')({
+  // raw passthrough — session-filter.ts owns parsing
   validateSearch: (search: Record<string, unknown>): SessionSearch => ({
     q: typeof search.q === 'string' ? search.q : undefined,
+    sources: typeof search.sources === 'string' ? search.sources : undefined,
     from: typeof search.from === 'string' ? search.from : undefined,
     to: typeof search.to === 'string' ? search.to : undefined,
   }),
@@ -23,28 +34,41 @@ function SessionsLayout() {
   const { id } = useParams({ strict: false }) as { id?: string }
   const paletteOpen = useAtomValue(paletteOpenAtom)
   const rows = useSessionRows(search)
+  const sourceMetas = useAtomValue(sourceMetasAtom)
+  const activeSourceKeys = parseSourcesParam(search.sources) ?? []
   const [query, setQuery] = useState(search.q ?? '')
 
   // debounced input -> URL (the truth). Must use history.replace to keep the
   // full pathname: a route-bound navigate targets the layout route and drops
-  // the /sessions/$id child.
+  // the child route params.
   useEffect(() => {
     const timer = setTimeout(() => {
       const params = new URLSearchParams()
       if (query.trim()) params.set('q', query.trim())
+      if (search.sources) params.set('sources', search.sources)
       if (search.from) params.set('from', search.from)
       if (search.to) params.set('to', search.to)
       const qs = params.toString()
       router.history.replace(`${window.location.pathname}${qs ? `?${qs}` : ''}`)
     }, 250)
     return () => clearTimeout(timer)
-  }, [query, search.from, search.to, router])
+  }, [query, search.sources, search.from, search.to, router])
 
-  // external changes (heatmap jump, back button) -> echo into the input; render-phase adjust
+  // external changes (heatmap jump, sidebar toggle) -> echo into the input;
+  // render-phase adjust, no effect
   const [prevQ, setPrevQ] = useState(search.q)
   if (search.q !== prevQ) {
     setPrevQ(search.q)
     setQuery(search.q ?? '')
+  }
+
+  const removeSource = (key: string) => {
+    void navigate({
+      search: (prev: SessionSearch) => ({
+        ...prev,
+        sources: stringifySourcesParam(toggleSource(parseSourcesParam(prev.sources), key)),
+      }),
+    })
   }
 
   // j/k moves across the filtered list; skip when the palette is open or typing
@@ -73,7 +97,7 @@ function SessionsLayout() {
     return () => window.removeEventListener('keydown', handler)
   }, [rows, id, paletteOpen, navigate])
 
-  const filtering = !!(search.q || search.from || search.to)
+  const filtering = !!(search.q || search.sources || search.from || search.to)
 
   return (
     <div className="flex h-screen">
@@ -104,7 +128,11 @@ function SessionsLayout() {
             {search.from && search.to && (
               <button
                 type="button"
-                onClick={() => void navigate({ search: (prev: SessionSearch) => ({ q: prev.q }) })}
+                onClick={() =>
+                  void navigate({
+                    search: (prev: SessionSearch) => ({ q: prev.q, sources: prev.sources }),
+                  })
+                }
                 className="text-low transition-colors duration-200 hover:text-hi"
                 title="Clear date filter"
               >
@@ -112,6 +140,24 @@ function SessionsLayout() {
               </button>
             )}
           </div>
+          {activeSourceKeys.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {activeSourceKeys.map((key) => {
+                const meta = sourceMetas.find((m) => m.ok && sourceKey(m.provider, m.user) === key)
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => removeSource(key)}
+                    className="flex items-center gap-1 rounded-sm border border-line px-1.5 py-0.5 font-mono text-[11px] text-low transition-colors duration-200 hover:text-hi"
+                    title="Remove source filter"
+                  >
+                    {meta?.label ?? key} ×
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {rows.length === 0 ? (

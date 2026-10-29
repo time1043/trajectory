@@ -87,6 +87,8 @@ export const sourceMetasAtom = atom(async (get) => {
     if (s.status === 'ok')
       return {
         id: s.parsed.sourceId,
+        provider: s.parsed.provider,
+        user: s.parsed.user,
         label: `${s.parsed.providerLabel} · ${s.parsed.user}`,
         count: s.parsed.trajectories.length,
         ok: true as const,
