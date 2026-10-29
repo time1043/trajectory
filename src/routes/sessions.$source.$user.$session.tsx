@@ -13,6 +13,7 @@ import { withSuspense } from '@/components/loading'
 import MiniToc, { type MiniTocEntry } from '@/components/mini-toc'
 import ProviderDot from '@/components/provider-dot'
 import { MessageBlock, ReferenceList } from '@/components/session-parts'
+import TagEditor from '@/components/tag-editor'
 import { trajectoryIdFromParts } from '@/domain/model/identity'
 import { fmtDate } from '@/lib/format'
 
@@ -99,6 +100,8 @@ function SessionContent({ trajectory, blocks, references, citationWindows, model
           </>
         )}
       </div>
+
+      <TagEditor trajectoryId={trajectory.id} shortcut />
 
       <div className="mt-10 space-y-9">
         {blocks.map((block) => (
