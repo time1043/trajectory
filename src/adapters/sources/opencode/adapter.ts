@@ -23,8 +23,7 @@ export const opencodeAdapter: SourceAdapter = {
     const dbPath = manifest.files.find((f) => f.path.endsWith('/opencode.db'))!.path
     return parseOpencodeFamily({
       querySqlite,
-      sourceId: identity.sourceId,
-      label: identity.label,
+      identity,
       dbPath,
       dialect: {
         sessionsSql:

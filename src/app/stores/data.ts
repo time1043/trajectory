@@ -87,7 +87,7 @@ export const sourceMetasAtom = atom(async (get) => {
     if (s.status === 'ok')
       return {
         id: s.parsed.sourceId,
-        label: s.parsed.label,
+        label: `${s.parsed.providerLabel} · ${s.parsed.user}`,
         count: s.parsed.trajectories.length,
         ok: true as const,
       }
@@ -98,10 +98,18 @@ export const sourceMetasAtom = atom(async (get) => {
 })
 
 /**
- * Adapter label per source id — the one naming used everywhere a source is
- * named (sidebar, reading view) so it never diverges between surfaces.
+ * Provider label + user per source id. The sidebar composes '<provider> ·
+ * <user>'; the reading view orders its meta line as provider -> models ->
+ * user. One source of parts, per-surface composition.
  */
-export const sourceLabelsAtom = atom(async (get) => {
-  const metas = await get(sourceMetasAtom)
-  return new Map(metas.map((m) => [m.id, m.label]))
+export const sourcePartsAtom = atom(async (get) => {
+  const sources = await get(allSourcesDataAtom)
+  return new Map(
+    sources
+      .filter((s) => s.status === 'ok')
+      .map((s) => [
+        s.parsed.sourceId,
+        { providerLabel: s.parsed.providerLabel, user: s.parsed.user },
+      ]),
+  )
 })

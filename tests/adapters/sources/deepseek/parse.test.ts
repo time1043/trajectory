@@ -140,7 +140,8 @@ describe('parseDeepseek', () => {
   it('falls back to (untitled) and masks profile PII', () => {
     const source = parse()
     expect(source.trajectories[0]?.id).toBe('deepseek:1665434994-qq:c1')
-    expect(source.label).toBe('DeepSeek · 1665434994-qq')
+    expect(source.providerLabel).toBe('DeepSeek')
+    expect(source.user).toBe('1665434994-qq')
     expect(source.trajectories[0]?.title).toBe('(untitled)')
     expect(source.profile).toEqual({
       displayName: 'tester',

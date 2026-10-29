@@ -22,8 +22,7 @@ export const zcodeAdapter: SourceAdapter = {
     const dbPath = manifest.files.find((f) => f.path.endsWith('/db.sqlite'))!.path
     return parseOpencodeFamily({
       querySqlite,
-      sourceId: identity.sourceId,
-      label: identity.label,
+      identity,
       dbPath,
       dialect: {
         sessionsSql:

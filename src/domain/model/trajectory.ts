@@ -30,7 +30,8 @@ export interface Trajectory {
 /** One adapter output: domain model plus source-level diagnostics */
 export interface ParsedSource {
   readonly sourceId: SourceId
-  readonly label: string
+  readonly providerLabel: string
+  readonly user: string
   readonly profile: PersonaProfile | null
   readonly trajectories: readonly Trajectory[]
   readonly diagnostics: ParseDiagnostics

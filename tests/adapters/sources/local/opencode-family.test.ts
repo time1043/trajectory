@@ -158,12 +158,14 @@ describe('zcode adapter', () => {
     })
 
     expect(source.sourceId).toBe('zcode:oswin-m4a')
-    expect(source.label).toBe('ZCode · oswin-m4a')
+    expect(source.providerLabel).toBe('ZCode')
+    expect(source.user).toBe('oswin-m4a')
     // the subagent session is machinery and stays out of the list
     expect(source.trajectories).toHaveLength(1)
     const trajectory = source.trajectories[0]!
     expect(trajectory.id).toBe('zcode:oswin-m4a:sess_1')
-    expect(source.label).toBe('ZCode · oswin-m4a')
+    expect(source.providerLabel).toBe('ZCode')
+    expect(source.user).toBe('oswin-m4a')
 
     const nodes = [...trajectory.nodes.values()]
     expect(nodes.map((n) => n.id)).toEqual(['m1', 'm3'])

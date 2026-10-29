@@ -146,7 +146,8 @@ export const piAdapter: SourceAdapter = {
 
     return {
       sourceId: identity.sourceId,
-      label: identity.label,
+      providerLabel: identity.providerLabel,
+      user: identity.user,
       profile: null,
       trajectories: build.trajectories,
       diagnostics: { unknownPartCounts: build.unknownPartCounts, invariantViolations: [] },

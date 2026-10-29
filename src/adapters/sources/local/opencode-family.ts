@@ -1,6 +1,7 @@
 import type { Part, ToolCallPayload } from '@/domain/model/part'
 import type { ParsedSource, Trajectory } from '@/domain/model/trajectory'
 import type { QuerySqlite } from '@/domain/ports/data-host'
+import type { SourceIdentity } from '@/domain/ports/source-adapter'
 
 import {
   buildTrajectory,
@@ -34,12 +35,11 @@ export interface OpencodeFamilyDialect {
 
 export async function parseOpencodeFamily(opts: {
   querySqlite: QuerySqlite
-  sourceId: string
-  label: string
+  identity: SourceIdentity
   dbPath: string
   dialect: OpencodeFamilyDialect
 }): Promise<ParsedSource> {
-  const { querySqlite, dialect } = opts
+  const { querySqlite, dialect, identity } = opts
   const build: SourceBuild = { trajectories: [], unknownPartCounts: {} }
 
   const sessions = (await querySqlite(opts.dbPath, dialect.sessionsSql)).rows
@@ -96,7 +96,7 @@ export async function parseOpencodeFamily(opts: {
     if (!title) title = titleFromPrompt(firstPrompt) || '(untitled)'
 
     const trajectory: Trajectory = buildTrajectory({
-      sourceId: opts.sourceId,
+      sourceId: identity.sourceId,
       rawId: sessionId,
       title,
       startedAt: Number(session.time_created),
@@ -107,8 +107,9 @@ export async function parseOpencodeFamily(opts: {
   }
 
   return {
-    sourceId: opts.sourceId,
-    label: opts.label,
+    sourceId: identity.sourceId,
+    providerLabel: identity.providerLabel,
+    user: identity.user,
     profile: null,
     trajectories: build.trajectories,
     diagnostics: { unknownPartCounts: build.unknownPartCounts, invariantViolations: [] },

@@ -155,7 +155,8 @@ export function parseDeepseek(
 
   return {
     sourceId: identity.sourceId,
-    label: identity.label,
+    providerLabel: identity.providerLabel,
+    user: identity.user,
     profile,
     trajectories,
     diagnostics: { unknownPartCounts, invariantViolations },

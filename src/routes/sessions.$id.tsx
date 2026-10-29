@@ -6,7 +6,7 @@ import type { WebResult } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
 import type { DocBlock } from '@/domain/services/document-view'
 
-import { sourceLabelsAtom } from '@/app/stores/data'
+import { sourcePartsAtom } from '@/app/stores/data'
 import { documentViewFamily, trajectoryByIdFamily, variantPathsAtom } from '@/app/stores/detail'
 import EmptyState from '@/components/empty-state'
 import { withSuspense } from '@/components/loading'
@@ -47,7 +47,10 @@ interface ContentView {
 
 function SessionContent({ trajectory, blocks, references, citationWindows, models }: ContentView) {
   const switched = useAtomValue(variantPathsAtom).has(trajectory.id)
-  const sourceLabel = useAtomValue(sourceLabelsAtom).get(trajectory.sourceId) ?? trajectory.sourceId
+  const sourceParts = useAtomValue(sourcePartsAtom).get(trajectory.sourceId) ?? {
+    providerLabel: trajectory.sourceId,
+    user: '',
+  }
   const userCount = blocks.filter((b) => b.node.role === 'user' && b.chainIndex === 0).length
 
   return (
@@ -64,11 +67,17 @@ function SessionContent({ trajectory, blocks, references, citationWindows, model
         <span>{blocks.length} messages</span>
         <span className="text-faint">·</span>
         <ProviderDot sourceId={trajectory.sourceId} />
-        <span>{sourceLabel}</span>
+        <span>{sourceParts.providerLabel}</span>
         {models.length > 0 && (
           <>
             <span className="text-faint">·</span>
             <span className="text-mid">{models.join(' + ')}</span>
+          </>
+        )}
+        {sourceParts.user && (
+          <>
+            <span className="text-faint">·</span>
+            <span>{sourceParts.user}</span>
           </>
         )}
       </div>

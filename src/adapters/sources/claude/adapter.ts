@@ -45,7 +45,7 @@ const WRAPPED_PREFIX =
  * Tool results arrive in user-role lines and merge back into their tool_use.
  */
 export const claudeAdapter: SourceAdapter = {
-  id: 'claude',
+  id: 'claude-code',
   label: 'Claude Code',
   detect(manifest: SourceManifest): boolean {
     return manifest.files.some((f) => SESSION_FILE.test(`/${f.path}`))
@@ -144,7 +144,7 @@ export const claudeAdapter: SourceAdapter = {
       }
 
       const trajectory = finishSession({
-        sourceId: 'claude',
+        sourceId: identity.sourceId,
         rawId,
         drafts,
         startedAt,
@@ -156,8 +156,9 @@ export const claudeAdapter: SourceAdapter = {
     }
 
     return {
-      sourceId: 'claude',
-      label: identity.label,
+      sourceId: identity.sourceId,
+      providerLabel: identity.providerLabel,
+      user: identity.user,
       profile: null,
       trajectories: build.trajectories,
       diagnostics: { unknownPartCounts: build.unknownPartCounts, invariantViolations: [] },
