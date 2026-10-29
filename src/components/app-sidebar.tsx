@@ -5,9 +5,9 @@ import type { SessionSearch } from '@/app/stores/session-filter'
 
 import { sourceMetasAtom } from '@/app/stores/data'
 import {
-  parseSourcesParam,
+  parseListParam,
   sourceKey,
-  stringifySourcesParam,
+  stringifyListParam,
   toggleSource,
 } from '@/app/stores/session-filter'
 import { PaletteTrigger } from '@/components/command-palette'
@@ -26,14 +26,14 @@ export default function AppSidebar() {
   const navigate = useNavigate()
   // the sidebar renders on every route — read the filter straight off the location
   const search = useSearch({ strict: false }) as { sources?: string }
-  const activeKeys = parseSourcesParam(search.sources) ?? []
+  const activeKeys = parseListParam(search.sources) ?? []
   const toggle = (provider: string, user: string) => {
     const key = sourceKey(provider, user)
     void navigate({
       to: '/sessions',
       search: (prev: SessionSearch) => ({
         ...prev,
-        sources: stringifySourcesParam(toggleSource(parseSourcesParam(prev.sources), key)),
+        sources: stringifyListParam(toggleSource(parseListParam(prev.sources), key)),
       }),
     })
   }
