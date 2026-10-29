@@ -1,4 +1,4 @@
-import type { Plugin, ViteDevServer } from 'vite'
+import type { Plugin, PreviewServer, ViteDevServer } from 'vite'
 
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
@@ -139,6 +139,109 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
     return db
   }
 
+  function createApiMiddleware() {
+    const readBody = (req: import('node:http').IncomingMessage): Promise<string> =>
+      new Promise((resolve, reject) => {
+        let body = ''
+        req.on('data', (chunk: Buffer) => (body += chunk))
+        req.on('end', () => resolve(body))
+        req.on('error', reject)
+      })
+
+    return async (
+      req: import('node:http').IncomingMessage,
+      res: import('node:http').ServerResponse,
+      next: (err?: unknown) => void,
+    ) => {
+      const url = new URL(req.url ?? '/', 'http://localhost')
+      if (!url.pathname.startsWith('/@api/')) return next()
+
+      if (url.pathname === '/@api/sources') {
+        const manifests = await scan()
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify(manifests))
+        return
+      }
+
+      if (url.pathname === '/@api/file') {
+        const requested = url.searchParams.get('path')
+        if (!requested) {
+          res.statusCode = 400
+          res.end('missing ?path=')
+          return
+        }
+        const manifests = await scan()
+        const known = manifests.some((m) => m.files.some((f) => f.path === requested))
+        if (!known) {
+          res.statusCode = 404
+          res.end('path not in manifest')
+          return
+        }
+        const resolved = path.resolve(realRoot, requested)
+        if (path.relative(realRoot, resolved).startsWith('..')) {
+          res.statusCode = 403
+          res.end('forbidden')
+          return
+        }
+        try {
+          const body = await fsp.readFile(resolved)
+          res.setHeader('Content-Type', 'application/octet-stream')
+          res.setHeader('Content-Length', body.byteLength)
+          res.end(body)
+        } catch (error) {
+          res.statusCode = 500
+          res.end(String(error))
+        }
+        return
+      }
+
+      if (url.pathname === '/@api/sqlite' && req.method === 'POST') {
+        try {
+          const body = JSON.parse(await readBody(req)) as {
+            path?: string
+            sql?: string
+            params?: unknown[]
+          }
+          if (!body.path || !body.sql) {
+            res.statusCode = 400
+            res.end('missing path or sql')
+            return
+          }
+          const manifests = await scan()
+          const known = manifests.some((m) =>
+            m.files.some((f) => f.path === body.path && SQLITE_SUFFIXES.has(path.extname(f.path))),
+          )
+          if (!known) {
+            res.statusCode = 404
+            res.end('database not in manifest')
+            return
+          }
+          if (path.relative(realRoot, path.resolve(realRoot, body.path)).startsWith('..')) {
+            res.statusCode = 403
+            res.end('forbidden')
+            return
+          }
+          if (!/^\s*(select|with)\b/i.test(body.sql)) {
+            res.statusCode = 403
+            res.end('read-only: only SELECT/WITH statements')
+            return
+          }
+          const db = sqliteFor(body.path)
+          const rows = db.prepare(body.sql).all(...(body.params ?? [])) as Record<string, unknown>[]
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ rows } satisfies SqliteQueryResult))
+        } catch (error) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(error) }))
+        }
+        return
+      }
+
+      res.statusCode = 404
+      res.end('not found')
+    }
+  }
+
   return {
     name: 'trajectory-data',
     enforce: 'pre',
@@ -183,108 +286,8 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         server.watcher.on('unlink', notify)
       }
 
-      const readBody = (req: import('node:http').IncomingMessage): Promise<string> =>
-        new Promise((resolve, reject) => {
-          let body = ''
-          req.on('data', (chunk: Buffer) => (body += chunk))
-          req.on('end', () => resolve(body))
-          req.on('error', reject)
-        })
-
       // ---- endpoints ----
-      server.middlewares.use(async (req, res, next) => {
-        const url = new URL(req.url ?? '/', 'http://localhost')
-        if (!url.pathname.startsWith('/@api/')) return next()
-
-        if (url.pathname === '/@api/sources') {
-          const manifests = await scan()
-          res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify(manifests))
-          return
-        }
-
-        if (url.pathname === '/@api/file') {
-          const requested = url.searchParams.get('path')
-          if (!requested) {
-            res.statusCode = 400
-            res.end('missing ?path=')
-            return
-          }
-          const manifests = await scan()
-          const known = manifests.some((m) => m.files.some((f) => f.path === requested))
-          if (!known) {
-            res.statusCode = 404
-            res.end('path not in manifest')
-            return
-          }
-          const resolved = path.resolve(realRoot, requested)
-          if (path.relative(realRoot, resolved).startsWith('..')) {
-            res.statusCode = 403
-            res.end('forbidden')
-            return
-          }
-          try {
-            const body = await fsp.readFile(resolved)
-            res.setHeader('Content-Type', 'application/octet-stream')
-            res.setHeader('Content-Length', body.byteLength)
-            res.end(body)
-          } catch (error) {
-            res.statusCode = 500
-            res.end(String(error))
-          }
-          return
-        }
-
-        if (url.pathname === '/@api/sqlite' && req.method === 'POST') {
-          try {
-            const body = JSON.parse(await readBody(req)) as {
-              path?: string
-              sql?: string
-              params?: unknown[]
-            }
-            if (!body.path || !body.sql) {
-              res.statusCode = 400
-              res.end('missing path or sql')
-              return
-            }
-            const manifests = await scan()
-            const known = manifests.some((m) =>
-              m.files.some(
-                (f) => f.path === body.path && SQLITE_SUFFIXES.has(path.extname(f.path)),
-              ),
-            )
-            if (!known) {
-              res.statusCode = 404
-              res.end('database not in manifest')
-              return
-            }
-            if (path.relative(realRoot, path.resolve(realRoot, body.path)).startsWith('..')) {
-              res.statusCode = 403
-              res.end('forbidden')
-              return
-            }
-            if (!/^\s*(select|with)\b/i.test(body.sql)) {
-              res.statusCode = 403
-              res.end('read-only: only SELECT/WITH statements')
-              return
-            }
-            const db = sqliteFor(body.path)
-            const rows = db.prepare(body.sql).all(...(body.params ?? [])) as Record<
-              string,
-              unknown
-            >[]
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify({ rows } satisfies SqliteQueryResult))
-          } catch (error) {
-            res.statusCode = 500
-            res.end(JSON.stringify({ error: String(error) }))
-          }
-          return
-        }
-
-        res.statusCode = 404
-        res.end('not found')
-      })
+      server.middlewares.use(createApiMiddleware())
 
       // startup log
       void scan().then((manifests) => {
@@ -292,6 +295,10 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         const list = manifests.map((m) => `  · ${m.dirName} (${m.files.length} files)`).join('\n')
         server.config.logger.info(`[trajectory-data] sources:\n${list}`, { clear: false })
       })
+    },
+
+    configurePreviewServer(server: PreviewServer) {
+      server.middlewares.use(createApiMiddleware())
     },
   }
 }
