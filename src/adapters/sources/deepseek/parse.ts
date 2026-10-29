@@ -145,6 +145,9 @@ export function parseDeepseek(
     trajectories.push({
       id: trajectoryId(identity.sourceId, raw.id),
       sourceId: identity.sourceId,
+      provider: identity.provider,
+      user: identity.user,
+      sessionId: raw.id,
       title: raw.title || '(untitled)',
       startedAt,
       updatedAt: toEpochMs(raw.updated_at),

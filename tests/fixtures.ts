@@ -57,7 +57,10 @@ export function makeTrajectory(specs: readonly NodeSpec[]): Trajectory {
   }
   return {
     id: 'test:t1',
-    sourceId: 'test',
+    sourceId: 'test:t1',
+    provider: 'test',
+    user: 't1',
+    sessionId: 't1',
     title: 'fixture',
     startedAt: specs.length ? Math.min(...specs.map((s) => s.at)) : 0,
     updatedAt: specs.length ? Math.max(...specs.map((s) => s.at)) : 0,

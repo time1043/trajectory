@@ -20,6 +20,10 @@ export interface ParseDiagnostics {
 export interface Trajectory {
   readonly id: TrajectoryId
   readonly sourceId: SourceId
+  /** Natural identity parts — the URL is built from these, never from the ':'-joined id */
+  readonly provider: string
+  readonly user: string
+  readonly sessionId: string
   readonly title: string
   readonly startedAt: EpochMs
   readonly updatedAt: EpochMs

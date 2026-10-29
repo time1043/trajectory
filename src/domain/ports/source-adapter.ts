@@ -33,6 +33,7 @@ export interface SourceParseInput {
  */
 export interface SourceIdentity {
   readonly sourceId: SourceId
+  readonly provider: string
   readonly providerLabel: string
   readonly user: string
 }
@@ -43,5 +44,5 @@ export function sourceIdentity(
   providerLabel: string,
 ): SourceIdentity {
   const user = manifest.dirName.split('/').pop() ?? manifest.dirName
-  return { sourceId: `${provider}:${user}`, providerLabel, user }
+  return { sourceId: `${provider}:${user}`, provider, providerLabel, user }
 }

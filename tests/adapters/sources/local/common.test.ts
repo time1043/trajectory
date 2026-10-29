@@ -71,6 +71,7 @@ describe('parseJsonl', () => {
 })
 
 describe('toNodes + buildTrajectory', () => {
+  const identity = { sourceId: 'test:t1', provider: 'test', providerLabel: 'Test', user: 't1' }
   const drafts: NodeDraft[] = [
     { id: 'u1', at: 1, role: 'user', parts: [{ kind: 'text', text: 'q' }] },
     { id: 'a1', at: 2, role: 'assistant', model: 'm1', parts: [{ kind: 'text', text: 'r' }] },
@@ -88,21 +89,24 @@ describe('toNodes + buildTrajectory', () => {
 
   it('builds a trajectory with a linear active path and title fallback', () => {
     const trajectory = buildTrajectory({
-      sourceId: 'test',
+      identity,
       rawId: 'r1',
       title: '',
       startedAt: 1,
       updatedAt: 3,
       drafts,
     })
-    expect(trajectory.id).toBe('test:r1')
+    expect(trajectory.id).toBe('test:t1:r1')
+    expect(trajectory.provider).toBe('test')
+    expect(trajectory.user).toBe('t1')
+    expect(trajectory.sessionId).toBe('r1')
     expect(trajectory.activePath).toEqual(['u1', 'a1', 'u2'])
     expect(trajectory.title).toBe('(untitled)')
   })
 
   it('produces connectivity-clean trees (invariant-safe by construction)', () => {
     const trajectory = buildTrajectory({
-      sourceId: 'test',
+      identity,
       rawId: 'r1',
       title: 't',
       startedAt: 1,

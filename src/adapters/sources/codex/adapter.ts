@@ -192,7 +192,7 @@ export const codexAdapter: SourceAdapter = {
       }
 
       const trajectory = finishSession({
-        sourceId: identity.sourceId,
+        identity,
         rawId,
         drafts,
         startedAt,

@@ -27,7 +27,10 @@ function linear(id: string, turns: Array<{ at: number }>): Trajectory {
   })
   return {
     id: `test:${id}`,
-    sourceId: 'test',
+    sourceId: `test:${id}`,
+    provider: 'test',
+    user: id,
+    sessionId: id,
     title: id,
     startedAt: turns[0]?.at ?? 0,
     updatedAt: turns.length ? turns[turns.length - 1].at + HOUR : 0,

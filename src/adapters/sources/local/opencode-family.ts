@@ -96,7 +96,7 @@ export async function parseOpencodeFamily(opts: {
     if (!title) title = titleFromPrompt(firstPrompt) || '(untitled)'
 
     const trajectory: Trajectory = buildTrajectory({
-      sourceId: identity.sourceId,
+      identity,
       rawId: sessionId,
       title,
       startedAt: Number(session.time_created),

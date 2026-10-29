@@ -1,4 +1,5 @@
 import type { NodeId } from '@/domain/model/identity'
+import type { SourceIdentity } from '@/domain/ports/source-adapter'
 import type { MessageNode, Role } from '@/domain/model/message-node'
 import type { Part, ToolCallPayload } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
@@ -120,16 +121,20 @@ export function toNodes(drafts: readonly NodeDraft[]): Map<string, MessageNode> 
 }
 
 export function buildTrajectory(input: {
-  sourceId: string
+  identity: SourceIdentity
   rawId: string
   title: string
   startedAt: number
   updatedAt: number
   drafts: readonly NodeDraft[]
 }): Trajectory {
+  const { identity, rawId } = input
   return {
-    id: trajectoryId(input.sourceId, input.rawId),
-    sourceId: input.sourceId,
+    id: trajectoryId(identity.sourceId, rawId),
+    sourceId: identity.sourceId,
+    provider: identity.provider,
+    user: identity.user,
+    sessionId: rawId,
     title: input.title || '(untitled)',
     startedAt: input.startedAt,
     updatedAt: input.updatedAt,
@@ -140,7 +145,7 @@ export function buildTrajectory(input: {
 
 /** Shared tail for file-based adapters: explicit title first, prompt fallback, time fallbacks */
 export function finishSession(input: {
-  sourceId: string
+  identity: SourceIdentity
   rawId: string
   drafts: readonly NodeDraft[]
   startedAt: number
