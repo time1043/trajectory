@@ -28,6 +28,11 @@
   --tr-pv-deepseek: #4d6bfe;
   --tr-pv-openai: #10a37f;
   --tr-pv-claude: #d97757;
+  --tr-pv-codex: #10a37f;
+  --tr-pv-opencode: #06b6d4;
+  --tr-pv-pi: #f59e0b;
+  --tr-pv-zcode: #8b5cf6;
+  --tr-pv-qwen: #615ced;
   --tr-pv-local: #a3a3a3;
 
   --tr-error: #dc2626;
@@ -77,6 +82,11 @@
   --color-pv-deepseek: var(--tr-pv-deepseek);
   --color-pv-openai: var(--tr-pv-openai);
   --color-pv-claude: var(--tr-pv-claude);
+  --color-pv-codex: var(--tr-pv-codex);
+  --color-pv-opencode: var(--tr-pv-opencode);
+  --color-pv-pi: var(--tr-pv-pi);
+  --color-pv-zcode: var(--tr-pv-zcode);
+  --color-pv-qwen: var(--tr-pv-qwen);
   --color-pv-local: var(--tr-pv-local);
   --color-error-strong: var(--tr-error);
 
