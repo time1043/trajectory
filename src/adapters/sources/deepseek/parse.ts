@@ -1,8 +1,8 @@
 import type { MessageNode } from '@/domain/model/message-node'
 import type { Part, WebResult } from '@/domain/model/part'
-import type { PersonaProfile, ParsedSource, Trajectory } from '@/domain/model/trajectory'
+import type { PersonaProfile, Trajectory } from '@/domain/model/trajectory'
 import type { SourceManifest } from '@/domain/ports/data-host'
-import type { SourceIdentity } from '@/domain/ports/source-adapter'
+import type { SourceIdentity, SourceIndex, SessionSummary } from '@/domain/ports/source-adapter'
 
 import { trajectoryId } from '@/domain/model/identity'
 import { defaultActivePath } from '@/domain/services/turn-builder'
@@ -88,11 +88,7 @@ function buildProfile(raw: RawUser | undefined): PersonaProfile | null {
   }
 }
 
-export function parseDeepseek(
-  manifest: SourceManifest,
-  files: Map<string, ArrayBuffer>,
-  identity: SourceIdentity,
-): ParsedSource {
+function decodeFiles(manifest: SourceManifest, files: Map<string, ArrayBuffer>) {
   const conversationsPath = manifest.files.find((f) => f.path.endsWith(CONVERSATIONS_FILE))?.path
   const conversationsRaw = conversationsPath ? files.get(conversationsPath) : undefined
   if (!conversationsPath || !conversationsRaw)
@@ -105,54 +101,77 @@ export function parseDeepseek(
     userRaw ? safeParseUser(new TextDecoder().decode(userRaw)) : undefined,
   )
 
-  const unknownPartCounts: Record<string, number> = {}
-  const invariantViolations: string[] = []
-  const trajectories: Trajectory[] = []
+  return { conversations, profile }
+}
+
+/** Light pass: session summaries from the mapping tree (no fragment bodies) */
+export function indexDeepseek(
+  manifest: SourceManifest,
+  files: Map<string, ArrayBuffer>,
+  identity: SourceIdentity,
+): SourceIndex {
+  const { conversations, profile } = decodeFiles(manifest, files)
+  const summaries: SessionSummary[] = []
 
   for (const raw of conversations) {
-    const nodes = new Map<string, MessageNode>()
+    const nodes = new Map<
+      string,
+      {
+        id: string
+        parentId: string | null
+        childIds: string[]
+        role: MessageNode['role']
+        at: number
+        firstText: string
+      }
+    >()
 
     for (const [nodeId, rawNode] of Object.entries(raw.mapping)) {
       if (!rawNode.message || nodeId === 'root') continue
-      const parts = rawNode.message.fragments.map(toPart)
-      for (const part of parts) {
-        if (part.kind === 'unknown')
-          unknownPartCounts[part.rawType] = (unknownPartCounts[part.rawType] ?? 0) + 1
-      }
-      // childIds ascending by at (I4; normalized here, the export does not guarantee it)
-      const childIds = [...rawNode.children].sort(
-        (a, b) =>
-          (raw.mapping[a]?.message ? toEpochMs(raw.mapping[a].message!.inserted_at) : 0) -
-          (raw.mapping[b]?.message ? toEpochMs(raw.mapping[b].message!.inserted_at) : 0),
-      )
+      const fragments = rawNode.message.fragments
       nodes.set(nodeId, {
         id: nodeId,
-        // root's children become top-level nodes (I2: the sentinel is erased)
         parentId: rawNode.parent === 'root' || rawNode.parent === null ? null : rawNode.parent,
-        childIds,
-        role: roleOf(rawNode.message.fragments),
-        model: rawNode.message.model || null,
+        childIds: [...rawNode.children],
+        role: roleOf(fragments),
         at: toEpochMs(rawNode.message.inserted_at),
-        parts,
+        firstText: fragments.find((f) => f.type === 'REQUEST')?.content ?? '',
       })
     }
 
-    const activePath = defaultActivePath(nodes)
+    // normalize child order by time (the export does not guarantee it)
+    for (const node of nodes.values()) {
+      node.childIds.sort((a, b) => (nodes.get(a)?.at ?? 0) - (nodes.get(b)?.at ?? 0))
+    }
+
+    const activePath = defaultActivePath(nodes as unknown as ReadonlyMap<string, MessageNode>)
+    const turnStarts: number[] = []
+    let previousRole: MessageNode['role'] | null = null
+    let firstPrompt = ''
+    for (const nodeId of activePath) {
+      const node = nodes.get(nodeId)
+      if (!node) continue
+      if (node.role === 'user') {
+        if (previousRole !== 'user') turnStarts.push(node.at)
+        if (!firstPrompt && node.firstText) firstPrompt = node.firstText
+      }
+      previousRole = node.role
+    }
+    if (!turnStarts.length) continue
+
     const startedAt = activePath.length
       ? (nodes.get(activePath[0])?.at ?? toEpochMs(raw.inserted_at))
       : toEpochMs(raw.inserted_at)
 
-    trajectories.push({
+    summaries.push({
       id: trajectoryId(identity.sourceId, raw.id),
-      sourceId: identity.sourceId,
-      provider: identity.provider,
-      user: identity.user,
       sessionId: raw.id,
       title: raw.title || '(untitled)',
       startedAt,
       updatedAt: toEpochMs(raw.updated_at),
-      nodes,
-      activePath,
+      turnStarts,
+      messageCount: activePath.length,
+      firstPrompt,
     })
   }
 
@@ -162,7 +181,63 @@ export function parseDeepseek(
     providerLabel: identity.providerLabel,
     user: identity.user,
     profile,
-    trajectories,
-    diagnostics: { unknownPartCounts, invariantViolations },
+    sessions: summaries,
+    diagnostics: { unknownPartCounts: {}, invariantViolations: [] },
+  }
+}
+
+/** Full pass: one conversation's body with all fragment content */
+export function loadDeepseekSession(
+  manifest: SourceManifest,
+  files: Map<string, ArrayBuffer>,
+  sessionId: string,
+  identity: SourceIdentity,
+): Trajectory | null {
+  const { conversations, profile: _profile } = decodeFiles(manifest, files)
+  const raw = conversations.find((c) => c.id === sessionId)
+  if (!raw) return null
+
+  const unknownPartCounts: Record<string, number> = {}
+  const nodes = new Map<string, MessageNode>()
+
+  for (const [nodeId, rawNode] of Object.entries(raw.mapping)) {
+    if (!rawNode.message || nodeId === 'root') continue
+    const parts = rawNode.message.fragments.map(toPart)
+    for (const part of parts) {
+      if (part.kind === 'unknown')
+        unknownPartCounts[part.rawType] = (unknownPartCounts[part.rawType] ?? 0) + 1
+    }
+    const childIds = [...rawNode.children].sort(
+      (a, b) =>
+        (raw.mapping[a]?.message ? toEpochMs(raw.mapping[a].message!.inserted_at) : 0) -
+        (raw.mapping[b]?.message ? toEpochMs(raw.mapping[b].message!.inserted_at) : 0),
+    )
+    nodes.set(nodeId, {
+      id: nodeId,
+      parentId: rawNode.parent === 'root' || rawNode.parent === null ? null : rawNode.parent,
+      childIds,
+      role: roleOf(rawNode.message.fragments),
+      model: rawNode.message.model || null,
+      at: toEpochMs(rawNode.message.inserted_at),
+      parts,
+    })
+  }
+
+  const activePath = defaultActivePath(nodes)
+  const startedAt = activePath.length
+    ? (nodes.get(activePath[0])?.at ?? toEpochMs(raw.inserted_at))
+    : toEpochMs(raw.inserted_at)
+
+  return {
+    id: trajectoryId(identity.sourceId, raw.id),
+    sourceId: identity.sourceId,
+    provider: identity.provider,
+    user: identity.user,
+    sessionId: raw.id,
+    title: raw.title || '(untitled)',
+    startedAt,
+    updatedAt: toEpochMs(raw.updated_at),
+    nodes,
+    activePath,
   }
 }

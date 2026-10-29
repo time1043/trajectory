@@ -1,9 +1,8 @@
 import type { EpochMs, SourceId, TrajectoryId } from '@/domain/model/identity'
-import type { ParsedSource, Trajectory } from '@/domain/model/trajectory'
+import type { SourceIndex } from '@/domain/ports/source-adapter'
 
 import { topicDictionary } from '@/adapters/topics/dictionary'
 import { OTHER_TOPIC, assignTopic } from '@/domain/services/topics'
-import { buildTurns } from '@/domain/services/turn-builder'
 
 /** topic id -> display label; unmatched ('other') returns undefined and the UI hides it */
 export function topicLabel(id: string): string | undefined {
@@ -12,8 +11,8 @@ export function topicLabel(id: string): string | undefined {
 }
 
 /**
- * Lightweight rows for lists and panels — rendering 520 rows must never touch
- * the node maps, so everything here is precomputed at ingest time.
+ * Lightweight rows for lists and panels — derived from session summaries at
+ * index time. Rendering 520 rows must never touch session bodies.
  */
 export interface TrajectoryRow {
   readonly id: TrajectoryId
@@ -25,6 +24,8 @@ export interface TrajectoryRow {
   readonly startedAt: EpochMs
   readonly updatedAt: EpochMs
   readonly turnCount: number
+  /** Turn start times — the date-window filter runs on these, no bodies needed */
+  readonly turnStarts: readonly number[]
   /** Matched topic id; 'other' means unmatched (hidden in UI) */
   readonly primaryTopic: string
 }
@@ -35,37 +36,25 @@ export interface SourceDerived {
   readonly paletteText: ReadonlyMap<TrajectoryId, string>
 }
 
-/** First text fragment of the first user node on the active path */
-export function firstUserText(t: Trajectory): string {
-  for (const nodeId of t.activePath) {
-    const node = t.nodes.get(nodeId)
-    if (node?.role === 'user') {
-      const text = node.parts.find((p) => p.kind === 'text')
-      if (text && text.kind === 'text') return text.text
-    }
-  }
-  return ''
-}
-
-export function deriveSource(parsed: ParsedSource): SourceDerived {
+export function deriveSource(index: Omit<SourceIndex, 'diagnostics'>): SourceDerived {
   const rows: TrajectoryRow[] = []
   const paletteText = new Map<TrajectoryId, string>()
 
-  for (const t of parsed.trajectories) {
-    const firstText = firstUserText(t)
-    const turnCount = buildTurns(t).length
-    paletteText.set(t.id, `${t.title}\n${firstText}`)
+  for (const session of index.sessions) {
+    const firstText = session.firstPrompt
+    paletteText.set(session.id, `${session.title}\n${firstText}`)
     rows.push({
-      id: t.id,
-      sourceId: t.sourceId,
-      provider: t.provider,
-      user: t.user,
-      sessionId: t.sessionId,
-      title: t.title,
-      startedAt: t.startedAt,
-      updatedAt: t.updatedAt,
-      turnCount,
-      primaryTopic: assignTopic(topicDictionary, t.title, firstText),
+      id: session.id,
+      sourceId: index.sourceId,
+      provider: index.provider,
+      user: index.user,
+      sessionId: session.sessionId,
+      title: session.title,
+      startedAt: session.startedAt,
+      updatedAt: session.updatedAt,
+      turnCount: session.turnStarts.length,
+      turnStarts: session.turnStarts,
+      primaryTopic: assignTopic(topicDictionary, session.title, firstText),
     })
   }
 

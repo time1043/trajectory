@@ -1,7 +1,5 @@
 import type { EpochMs } from '../model/identity'
-import type { Trajectory } from '../model/trajectory'
-
-import { buildTurns } from './turn-builder'
+import type { SessionSummary } from '../ports/source-adapter'
 
 export interface DailyActivity {
   /** 'YYYY-MM-DD' in the viewer's local timezone */
@@ -56,8 +54,11 @@ function computeStreaks(days: readonly string[]): { current: number; longest: nu
   return { current, longest }
 }
 
-/** Merged across sources; derived purely from Trajectory (via Turns), no IO */
-export function computeGrowthOverview(trajectories: readonly Trajectory[]): GrowthOverview {
+/**
+ * Merged across sources, derived purely from session summaries (turn start
+ * times + counts) — no bodies required. Pure function, no IO.
+ */
+export function computeGrowthOverview(sessions: readonly SessionSummary[]): GrowthOverview {
   const byDay = new Map<string, DailyActivity>()
   const hourHistogram = new Array<number>(24).fill(0)
   let totalMessages = 0
@@ -65,19 +66,17 @@ export function computeGrowthOverview(trajectories: readonly Trajectory[]): Grow
   let firstAt: EpochMs | null = null
   let lastAt: EpochMs | null = null
 
-  for (const t of trajectories) {
-    totalMessages += t.nodes.size
-    if (firstAt === null || t.startedAt < firstAt) firstAt = t.startedAt
-    if (lastAt === null || t.updatedAt > lastAt) lastAt = t.updatedAt
+  for (const session of sessions) {
+    totalMessages += session.messageCount
+    totalTurns += session.turnStarts.length
+    if (firstAt === null || session.startedAt < firstAt) firstAt = session.startedAt
+    if (lastAt === null || session.updatedAt > lastAt) lastAt = session.updatedAt
 
-    const turns = buildTurns(t)
-    totalTurns += turns.length
     const touched = new Set<string>()
-    for (const turn of turns) {
-      const at = t.nodes.get(turn.inputNodeIds[0])?.at ?? t.startedAt
-      const day = localDay(at)
+    for (const turnAt of session.turnStarts) {
+      const day = localDay(turnAt)
       touched.add(day)
-      hourHistogram[new Date(at).getHours()]++
+      hourHistogram[new Date(turnAt).getHours()]++
       const entry = byDay.get(day) ?? { day, turns: 0, trajectories: 0 }
       entry.turns++
       byDay.set(day, entry)
@@ -96,7 +95,7 @@ export function computeGrowthOverview(trajectories: readonly Trajectory[]): Grow
       : 0
 
   return {
-    totalSessions: trajectories.length,
+    totalSessions: sessions.length,
     totalMessages,
     totalTurns,
     firstAt,

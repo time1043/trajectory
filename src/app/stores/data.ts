@@ -1,13 +1,13 @@
 import { atom } from 'jotai'
 
 import type { SourceDerived } from '@/app/derive'
-import type { ParsedSource } from '@/domain/model/trajectory'
 import type { SourceManifest } from '@/domain/ports/data-host'
+import type { SourceIndex } from '@/domain/ports/source-adapter'
 
 import { createRegexSanitizer } from '@/adapters/sanitize/regex-sanitizer'
 import { sourceAdapters } from '@/adapters/sources'
 import { deriveSource } from '@/app/derive'
-import { detectAdapter, ingest } from '@/app/ingest'
+import { detectAdapter, ingestIndex } from '@/app/ingest'
 import { atomFamily } from '@/lib/atom-family'
 
 /** Bumped on HMR / manual refresh; downstream async atoms refetch automatically */
@@ -32,7 +32,8 @@ export interface SourceLoadError {
 export interface LoadedSource {
   readonly status: 'ok'
   readonly dirName: string
-  readonly parsed: ParsedSource
+  readonly identity: { sourceId: string; provider: string; providerLabel: string; user: string }
+  readonly index: SourceIndex
   readonly derived: SourceDerived
 }
 export type SourceLoadResult = LoadedSource | UnrecognizedSource | SourceLoadError
@@ -40,11 +41,12 @@ export type SourceLoadResult = LoadedSource | UnrecognizedSource | SourceLoadErr
 const sanitizer = createRegexSanitizer({ sanitizeText: false })
 
 /**
- * Per-source load: detect -> ingest -> derive. atomFamily caches by dirName;
- * a dataVersion bump recomputes the whole dependency chain and old values go
- * to GC — a local dev tool with <100MB data does not need an LRU.
+ * Per-source index load: detect -> ingestIndex -> derive. atomFamily caches
+ * by dirName; a dataVersion bump recomputes the whole dependency chain and
+ * old values go to GC — a local dev tool with <100MB of index data does not
+ * need an LRU.
  */
-export const sourceDataFamily = atomFamily((dirName: string) =>
+export const sourceIndexFamily = atomFamily((dirName: string) =>
   atom(async (get): Promise<SourceLoadResult> => {
     get(dataVersionAtom)
     const manifests = await get(sourcesManifestAtom)
@@ -53,8 +55,14 @@ export const sourceDataFamily = atomFamily((dirName: string) =>
     const adapter = detectAdapter(sourceAdapters, manifest)
     if (!adapter) return { status: 'unrecognized', manifest }
     try {
-      const parsed = await ingest(adapter, manifest, sanitizer)
-      return { status: 'ok', dirName, parsed, derived: deriveSource(parsed) }
+      const index = await ingestIndex(adapter, manifest, sanitizer)
+      const identity = {
+        sourceId: index.sourceId,
+        provider: index.provider,
+        providerLabel: index.providerLabel,
+        user: index.user,
+      }
+      return { status: 'ok', dirName, identity, index, derived: deriveSource(index) }
     } catch (error) {
       return { status: 'error', dirName, error }
     }
@@ -63,13 +71,7 @@ export const sourceDataFamily = atomFamily((dirName: string) =>
 
 export const allSourcesDataAtom = atom(async (get) => {
   const manifests = await get(sourcesManifestAtom)
-  return Promise.all(manifests.map((m) => get(sourceDataFamily(m.dirName))))
-})
-
-/** All trajectories merged across sources (frozen by ingest) */
-export const allTrajectoriesAtom = atom(async (get) => {
-  const sources = await get(allSourcesDataAtom)
-  return sources.flatMap((s) => (s.status === 'ok' ? s.parsed.trajectories : []))
+  return Promise.all(manifests.map((m) => get(sourceIndexFamily(m.dirName))))
 })
 
 /** Merged lightweight rows, updatedAt descending */
@@ -80,22 +82,42 @@ export const allRowsAtom = atom(async (get) => {
     .sort((a, b) => b.updatedAt - a.updatedAt)
 })
 
+/** All session summaries merged across sources (frozen by ingest) */
+export const allSessionsAtom = atom(async (get) => {
+  const sources = await get(allSourcesDataAtom)
+  return sources.flatMap((s) => (s.status === 'ok' ? s.index.sessions : []))
+})
+
 /** Source metadata for the sidebar (provider dots / labels), unrecognized dirs included */
 export const sourceMetasAtom = atom(async (get) => {
   const sources = await get(allSourcesDataAtom)
   return sources.map((s) => {
     if (s.status === 'ok')
       return {
-        id: s.parsed.sourceId,
-        provider: s.parsed.provider,
-        user: s.parsed.user,
-        label: `${s.parsed.providerLabel} · ${s.parsed.user}`,
-        count: s.parsed.trajectories.length,
+        id: s.identity.sourceId,
+        provider: s.identity.provider,
+        user: s.identity.user,
+        label: `${s.identity.providerLabel} · ${s.identity.user}`,
+        count: s.index.sessions.length,
         ok: true as const,
       }
     if (s.status === 'unrecognized')
-      return { id: s.manifest.dirName, label: s.manifest.dirName, count: 0, ok: false as const }
-    return { id: s.dirName, label: s.dirName, count: 0, ok: false as const }
+      return {
+        id: s.manifest.dirName,
+        provider: s.manifest.dirName,
+        user: '',
+        label: s.manifest.dirName,
+        count: 0,
+        ok: false as const,
+      }
+    return {
+      id: s.dirName,
+      provider: s.dirName,
+      user: '',
+      label: s.dirName,
+      count: 0,
+      ok: false as const,
+    }
   })
 })
 
@@ -110,8 +132,14 @@ export const sourcePartsAtom = atom(async (get) => {
     sources
       .filter((s) => s.status === 'ok')
       .map((s) => [
-        s.parsed.sourceId,
-        { providerLabel: s.parsed.providerLabel, user: s.parsed.user },
+        s.identity.sourceId,
+        { providerLabel: s.identity.providerLabel, user: s.identity.user },
       ]),
   )
+})
+
+/** dirName -> manifest, for the body loader to find its adapter */
+export const manifestByDirNameAtom = atom(async (get) => {
+  const manifests = await get(sourcesManifestAtom)
+  return new Map(manifests.map((m) => [m.dirName, m]))
 })

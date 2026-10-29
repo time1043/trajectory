@@ -1,5 +1,6 @@
-import type { ParsedSource } from '@/domain/model/trajectory'
+import type { Trajectory } from '@/domain/model/trajectory'
 import type { Sanitizer } from '@/domain/ports/sanitizer'
+import type { SourceIndex } from '@/domain/ports/source-adapter'
 
 /**
  * Prepared text redaction (email / mainland phone / national id). The adapter
@@ -15,12 +16,15 @@ const PATTERNS: readonly { re: RegExp; replace: string }[] = [
 export function createRegexSanitizer(options: { sanitizeText?: boolean } = {}): Sanitizer {
   const sanitizeText = options.sanitizeText ?? false
   return {
-    sanitize(source: ParsedSource): ParsedSource {
-      if (!sanitizeText) return source
-      const trajectories = source.trajectories.map((t) => ({
-        ...t,
+    sanitizeIndex(source: SourceIndex): SourceIndex {
+      return source
+    },
+    sanitizeSession(trajectory: Trajectory): Trajectory {
+      if (!sanitizeText) return trajectory
+      return {
+        ...trajectory,
         nodes: new Map(
-          [...t.nodes.entries()].map(([id, node]) => [
+          [...trajectory.nodes.entries()].map(([id, node]) => [
             id,
             {
               ...node,
@@ -35,8 +39,7 @@ export function createRegexSanitizer(options: { sanitizeText?: boolean } = {}): 
             },
           ]),
         ),
-      }))
-      return { ...source, trajectories }
+      }
     },
   }
 }

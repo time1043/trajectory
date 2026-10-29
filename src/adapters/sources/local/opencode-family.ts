@@ -1,7 +1,7 @@
 import type { Part, ToolCallPayload } from '@/domain/model/part'
-import type { ParsedSource, Trajectory } from '@/domain/model/trajectory'
+import type { Trajectory } from '@/domain/model/trajectory'
 import type { QuerySqlite } from '@/domain/ports/data-host'
-import type { SourceIdentity } from '@/domain/ports/source-adapter'
+import type { SourceIdentity, SourceIndex, SessionSummary } from '@/domain/ports/source-adapter'
 
 import {
   buildTrajectory,
@@ -9,101 +9,114 @@ import {
   toolTitleFromInput,
   truncatedOutput,
   truncatedReasoning,
-  titleFromPrompt,
   type NodeDraft,
-  type SourceBuild,
 } from './common'
 
 /**
- * Shared parser for the opencode-family schema (session/message/part tables
- * with JSON `data` columns) — zcode is a superset of opencode. Differences
- * live in the dialect: ordering columns, noise filtering via `semantics`,
- * extra part kinds, and title fallbacks.
+ * Shared index/load for the opencode-family schema (session/message/part
+ * tables with JSON `data` columns) — zcode is a superset of opencode.
+ *
+ * index() runs aggregate SQL (sessions, a message SKELETON with only the
+ * json_extract fields the filters need, first prompts) and never touches part
+ * bodies — the 100MB+ of JSON stays in sqlite until a session is opened.
+ * loadSession() runs the existing per-session queries for one session.
  */
 export interface OpencodeFamilyDialect {
   sessionsSql: string
+  /** one row per visible message: sid / role / at (+ dialect fields for skipMessage) */
+  skeletonSql: string
+  /** self-contained: first visible user text per session, 240 chars */
+  firstPromptSql: string
+  sessionByIdSql: string
   messagesSql: string
   partsSql: string
-  /** Return true to drop a whole message envelope */
-  skipMessage(data: Record<string, unknown>): boolean
+  /** Index-time noise filter over the extracted skeleton fields */
+  skipSkeleton(skel: {
+    role: string | null
+    kind: string | null
+    origin: string | null
+    vis: string | null
+  }): boolean
+  /** Load-time noise filter over the raw message data */
+  skipMessageData(data: Record<string, unknown>): boolean
   /** Dialect-specific part kinds; return null to skip */
-  extraPart(data: Record<string, unknown>, unknownCounts: Record<string, number>): Part | null
-  /** Post-process the stored title (fallbacks run after this) */
-  normalizeTitle?(title: string): string
+  extraPart(data: Record<string, unknown>): Part | null
   filterSession?(row: Record<string, unknown>): boolean
+  normalizeTitle?(title: string): string
 }
 
-export async function parseOpencodeFamily(opts: {
+export async function indexOpencodeFamily(opts: {
   querySqlite: QuerySqlite
   identity: SourceIdentity
   dbPath: string
   dialect: OpencodeFamilyDialect
-}): Promise<ParsedSource> {
-  const { querySqlite, dialect, identity } = opts
-  const build: SourceBuild = { trajectories: [], unknownPartCounts: {} }
+}): Promise<SourceIndex> {
+  const { querySqlite, dialect, identity, dbPath } = opts
+  const sessions = (await querySqlite(dbPath, dialect.sessionsSql)).rows as Record<
+    string,
+    unknown
+  >[]
+  const skeletons = (await querySqlite(dbPath, dialect.skeletonSql)).rows as {
+    sid: string
+    role: string | null
+    kind: string | null
+    origin: string | null
+    vis: string | null
+    at: number
+  }[]
+  const firstPrompts = (await querySqlite(dbPath, dialect.firstPromptSql)).rows as {
+    sid: string
+    txt: string | null
+  }[]
+  const promptBySession = new Map(firstPrompts.map((r) => [String(r.sid), String(r.txt ?? '')]))
 
-  const sessions = (await querySqlite(opts.dbPath, dialect.sessionsSql)).rows
-  for (const session of sessions) {
-    if (dialect.filterSession?.(session)) continue
-    const sessionId = String(session.id)
-    const drafts: NodeDraft[] = []
-    let firstPrompt = ''
-
-    const [messages, parts] = await Promise.all([
-      querySqlite(opts.dbPath, dialect.messagesSql, [sessionId]),
-      querySqlite(opts.dbPath, dialect.partsSql, [sessionId]),
-    ])
-
-    const partsByMessage = new Map<string, Record<string, unknown>[]>()
-    for (const row of parts.rows) {
-      const key = String(row.message_id)
-      const list = partsByMessage.get(key) ?? []
-      list.push(JSON.parse(String(row.data)) as Record<string, unknown>)
-      partsByMessage.set(key, list)
-    }
-
-    for (const message of messages.rows) {
-      const data = JSON.parse(String(message.data)) as Record<string, unknown>
-      if (dialect.skipMessage(data)) continue
-      const role = data.role === 'user' ? ('user' as const) : ('assistant' as const)
-      const model = role === 'assistant' ? (data.modelID ?? data.modelId ?? null) : null
-
-      const draftParts: Part[] = []
-      for (const partData of partsByMessage.get(String(message.id)) ?? []) {
-        const part = mapPart(partData, dialect, build.unknownPartCounts)
-        if (part) draftParts.push(part)
-      }
-      if (!draftParts.length) continue
-
-      if (role === 'user' && !firstPrompt) {
-        const text = draftParts.find((p) => p.kind === 'text')
-        if (text && text.kind === 'text') firstPrompt = text.text
-      }
-
-      drafts.push({
-        id: String(message.id),
-        at: Number(message.time_created),
-        role,
-        model: typeof model === 'string' ? model : null,
-        parts: draftParts,
+  const turnStartsBySession = new Map<string, number[]>()
+  const messageCountBySession = new Map<string, number>()
+  let previousRole: string | null = null
+  let previousSid: string | null = null
+  for (const row of skeletons) {
+    const sid = String(row.sid)
+    if (sid !== previousSid) previousRole = null // turn boundary between sessions
+    if (
+      dialect.skipSkeleton({
+        role: row.role ?? null,
+        kind: row.kind ?? null,
+        origin: row.origin ?? null,
+        vis: row.vis ?? null,
       })
+    )
+      continue
+    if (row.role === 'user' && previousRole !== 'user') {
+      const list = turnStartsBySession.get(sid) ?? []
+      list.push(Number(row.at))
+      turnStartsBySession.set(sid, list)
     }
+    messageCountBySession.set(sid, (messageCountBySession.get(sid) ?? 0) + 1)
+    previousRole = row.role ?? null
+    previousSid = sid
+  }
 
-    if (!drafts.length) continue
+  const summaries: SessionSummary[] = []
+  for (const raw of sessions) {
+    if (dialect.filterSession?.(raw)) continue
+    const sessionId = String(raw.id)
+    const turnStarts = turnStartsBySession.get(sessionId) ?? []
+    if (!turnStarts.length) continue // nothing visible -> nothing to list
 
-    let title = String(session.title ?? '')
+    let title = String(raw.title ?? '')
     if (dialect.normalizeTitle) title = dialect.normalizeTitle(title)
-    if (!title) title = titleFromPrompt(firstPrompt) || '(untitled)'
+    if (!title) title = promptBySession.get(sessionId) || '(untitled)'
 
-    const trajectory: Trajectory = buildTrajectory({
-      identity,
-      rawId: sessionId,
+    summaries.push({
+      id: `${identity.sourceId}:${sessionId}`,
+      sessionId,
       title,
-      startedAt: Number(session.time_created),
-      updatedAt: Number(session.time_updated),
-      drafts,
+      startedAt: Number(raw.time_created),
+      updatedAt: Number(raw.time_updated),
+      turnStarts,
+      messageCount: messageCountBySession.get(sessionId) ?? 0,
+      firstPrompt: promptBySession.get(sessionId) ?? '',
     })
-    build.trajectories.push(trajectory)
   }
 
   return {
@@ -112,16 +125,82 @@ export async function parseOpencodeFamily(opts: {
     providerLabel: identity.providerLabel,
     user: identity.user,
     profile: null,
-    trajectories: build.trajectories,
-    diagnostics: { unknownPartCounts: build.unknownPartCounts, invariantViolations: [] },
+    sessions: summaries,
+    diagnostics: { unknownPartCounts: {}, invariantViolations: [] },
   }
 }
 
-function mapPart(
-  pd: Record<string, unknown>,
-  dialect: OpencodeFamilyDialect,
-  unknownCounts: Record<string, number>,
-): Part | null {
+export async function loadOpencodeFamilySession(opts: {
+  querySqlite: QuerySqlite
+  identity: SourceIdentity
+  sessionId: string
+  dbPath: string
+  dialect: OpencodeFamilyDialect
+}): Promise<Trajectory | null> {
+  const { querySqlite, dialect, identity } = opts
+
+  const sessionRows = (await querySqlite(opts.dbPath, dialect.sessionByIdSql, [opts.sessionId]))
+    .rows
+  const session = sessionRows[0]
+  if (!session) return null
+
+  const messages = (await querySqlite(opts.dbPath, dialect.messagesSql, [opts.sessionId])).rows as {
+    id: string
+    time_created: number
+    data: string
+  }[]
+  const parts = (await querySqlite(opts.dbPath, dialect.partsSql, [opts.sessionId])).rows as {
+    message_id: string
+    data: string
+  }[]
+
+  const partsByMessage = new Map<string, Record<string, unknown>[]>()
+  for (const row of parts) {
+    const key = String(row.message_id)
+    const list = partsByMessage.get(key) ?? []
+    list.push(JSON.parse(String(row.data)) as Record<string, unknown>)
+    partsByMessage.set(key, list)
+  }
+
+  const drafts: NodeDraft[] = []
+  for (const message of messages) {
+    const data = JSON.parse(String(message.data)) as Record<string, unknown>
+    if (dialect.skipMessageData(data)) continue
+    const role = data.role === 'user' ? ('user' as const) : ('assistant' as const)
+    const model = role === 'assistant' ? (data.modelID ?? data.modelId ?? null) : null
+
+    const draftParts: Part[] = []
+    for (const partData of partsByMessage.get(String(message.id)) ?? []) {
+      const part = mapPart(partData, dialect)
+      if (part) draftParts.push(part)
+    }
+    if (!draftParts.length) continue
+
+    drafts.push({
+      id: String(message.id),
+      at: Number(message.time_created),
+      role,
+      model: typeof model === 'string' ? model : null,
+      parts: draftParts,
+    })
+  }
+
+  if (!drafts.length) return null
+
+  let title = String(session.title ?? '')
+  if (dialect.normalizeTitle) title = dialect.normalizeTitle(title)
+
+  return buildTrajectory({
+    identity,
+    rawId: opts.sessionId,
+    title: title || '(untitled)',
+    startedAt: Number(session.time_created),
+    updatedAt: Number(session.time_updated),
+    drafts,
+  })
+}
+
+function mapPart(pd: Record<string, unknown>, dialect: OpencodeFamilyDialect): Part | null {
   switch (pd.type) {
     case 'text': {
       if (pd.synthetic === true) return null
@@ -159,6 +238,6 @@ function mapPart(
       }
     }
     default:
-      return dialect.extraPart(pd, unknownCounts)
+      return dialect.extraPart(pd)
   }
 }

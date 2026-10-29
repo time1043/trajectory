@@ -1,4 +1,5 @@
-import type { ParsedSource } from '../model/trajectory'
+import type { Trajectory } from '../model/trajectory'
+import type { SourceIndex } from './source-adapter'
 
 /**
  * Redaction hook, applied in the ingest pipeline (after the adapter, before
@@ -6,5 +7,6 @@ import type { ParsedSource } from '../model/trajectory'
  * text masking arms with the future share feature.
  */
 export interface Sanitizer {
-  sanitize(source: ParsedSource): ParsedSource
+  sanitizeIndex(source: SourceIndex): SourceIndex
+  sanitizeSession(trajectory: Trajectory): Trajectory
 }

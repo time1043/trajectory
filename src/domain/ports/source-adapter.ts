@@ -1,8 +1,35 @@
-import type { SourceId } from '../model/identity'
-import type { ParsedSource } from '../model/trajectory'
+import type { EpochMs, SourceId, TrajectoryId } from '../model/identity'
+import type { ParseDiagnostics, PersonaProfile, Trajectory } from '../model/trajectory'
+export type { Trajectory }
 import type { SourceFileEntry, SourceManifest, QuerySqlite } from './data-host'
 
 export type { SourceFileEntry, SourceManifest }
+
+/**
+ * Everything the dashboard, list, palette and tag counts need — derived at
+ * index time WITHOUT touching session bodies. turnStarts feeds the analytics
+ * (same accounting as buildTurns: consecutive user nodes merge into one turn).
+ */
+export interface SessionSummary {
+  readonly id: TrajectoryId
+  readonly sessionId: string
+  readonly title: string
+  readonly startedAt: EpochMs
+  readonly updatedAt: EpochMs
+  readonly turnStarts: readonly EpochMs[]
+  readonly messageCount: number
+  readonly firstPrompt: string
+}
+
+export interface SourceIndex {
+  readonly sourceId: SourceId
+  readonly provider: string
+  readonly providerLabel: string
+  readonly user: string
+  readonly profile: PersonaProfile | null
+  readonly sessions: readonly SessionSummary[]
+  readonly diagnostics: ParseDiagnostics
+}
 
 /**
  * Plugin contract for an external data source. Implementations are isomorphic
@@ -15,7 +42,10 @@ export interface SourceAdapter {
   readonly label: string
   /** Claim a manifest if its files belong to this adapter */
   detect(manifest: SourceManifest): boolean
-  parse(input: SourceParseInput): Promise<ParsedSource>
+  /** Light pass: session summaries only (no bodies) */
+  index(input: SourceParseInput): Promise<SourceIndex>
+  /** Full pass: one session's body, on demand */
+  loadSession(input: SourceParseInput, sessionId: string): Promise<Trajectory | null>
   /** Source-specific PII locations, for the future sanitizer */
   readonly piiHints?: readonly string[]
 }

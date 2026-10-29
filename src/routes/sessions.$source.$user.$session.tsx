@@ -7,7 +7,7 @@ import type { Trajectory } from '@/domain/model/trajectory'
 import type { DocBlock } from '@/domain/services/document-view'
 
 import { sourcePartsAtom } from '@/app/stores/data'
-import { documentViewFamily, trajectoryByIdFamily, variantPathsAtom } from '@/app/stores/detail'
+import { documentViewFamily, sessionBodyFamily, variantPathsAtom } from '@/app/stores/detail'
 import EmptyState from '@/components/empty-state'
 import { withSuspense } from '@/components/loading'
 import MiniToc, { type MiniTocEntry } from '@/components/mini-toc'
@@ -26,7 +26,7 @@ function SessionDetail() {
   const { source, user, session } = Route.useParams()
   const id = trajectoryIdFromParts(source, user, session)
   const view = useAtomValue(documentViewFamily(id))
-  const trajectory = useAtomValue(trajectoryByIdFamily(id))
+  const trajectory = useAtomValue(sessionBodyFamily(id))
 
   if (!view || !trajectory) return <EmptyState>{'{ session not found }'}</EmptyState>
 

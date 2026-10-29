@@ -1,45 +1,26 @@
 import { describe, expect, it } from 'vitest'
 
-import type { NodeDraft } from '@/adapters/sources/local/common'
-import type { Trajectory } from '@/domain/model/trajectory'
+import type { SessionSummary } from '@/domain/ports/source-adapter'
 
-import { toNodes } from '@/adapters/sources/local/common'
 import { computeGrowthOverview } from '@/domain/services/growth-analytics'
 
 const HOUR = 3_600_000
 const DAY = 86_400_000
 
-function linear(id: string, turns: Array<{ at: number }>): Trajectory {
-  const drafts: NodeDraft[] = []
-  turns.forEach((turn, i) => {
-    drafts.push({
-      id: `${id}:u${i}`,
-      at: turn.at,
-      role: 'user',
-      parts: [{ kind: 'text', text: `q${i}` }],
-    })
-    drafts.push({
-      id: `${id}:a${i}`,
-      at: turn.at + HOUR,
-      role: 'assistant',
-      parts: [{ kind: 'text', text: `r${i}` }],
-    })
-  })
+function summary(id: string, turnAts: number[]): SessionSummary {
+  const sorted = [...turnAts].sort((a, b) => a - b)
   return {
     id: `test:${id}`,
-    sourceId: `test:${id}`,
-    provider: 'test',
-    user: id,
     sessionId: id,
     title: id,
-    startedAt: turns[0]?.at ?? 0,
-    updatedAt: turns.length ? turns[turns.length - 1].at + HOUR : 0,
-    nodes: toNodes(drafts),
-    activePath: drafts.map((d) => d.id),
+    startedAt: sorted[0] ?? 0,
+    updatedAt: sorted.length ? sorted[sorted.length - 1] + HOUR : 0,
+    turnStarts: sorted,
+    messageCount: sorted.length * 2,
+    firstPrompt: '',
   }
 }
 
-/** fixed local-midnight anchor so day bucketing is deterministic in the test TZ */
 function localMidnight(dayOffset: number, hour = 10): number {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
@@ -51,9 +32,9 @@ describe('computeGrowthOverview', () => {
     const day0 = localMidnight(-1, 9)
     const day1 = localMidnight(0, 22)
     const overview = computeGrowthOverview([
-      linear('a', [{ at: day0 }, { at: day0 + 2 * HOUR }]),
-      linear('b', [{ at: day0 + HOUR }]),
-      linear('c', [{ at: day1 }]),
+      summary('a', [day0, day0 + 2 * HOUR]),
+      summary('b', [day0 + HOUR]),
+      summary('c', [day1]),
     ])
     const byDay = new Map(overview.daily.map((d) => [d.day, d]))
     const key0 = new Date(day0).toISOString().slice(0, 10)
@@ -67,16 +48,16 @@ describe('computeGrowthOverview', () => {
 
   it('fills the local-time hour histogram from turn starts', () => {
     const hour = new Date().getHours()
-    const overview = computeGrowthOverview([linear('a', [{ at: localMidnight(-1, hour) }])])
+    const overview = computeGrowthOverview([summary('a', [localMidnight(-1, hour)])])
     expect(overview.hourHistogram[hour]).toBe(1)
   })
 
   it('computes longest and current streaks across consecutive days', () => {
     const overview = computeGrowthOverview([
-      linear('a', [{ at: localMidnight(-2, 10) }]),
-      linear('b', [{ at: localMidnight(-1, 10) }]),
-      linear('c', [{ at: localMidnight(0, 10) }]),
-      linear('gap', [{ at: localMidnight(-30, 10) }]),
+      summary('a', [localMidnight(-2, 10)]),
+      summary('b', [localMidnight(-1, 10)]),
+      summary('c', [localMidnight(0, 10)]),
+      summary('gap', [localMidnight(-30, 10)]),
     ])
     expect(overview.longestStreak).toBe(3)
     expect(overview.currentStreak).toBe(3)
@@ -86,8 +67,8 @@ describe('computeGrowthOverview', () => {
 
   it('tolerates "not active yet today" by anchoring the current streak at yesterday', () => {
     const overview = computeGrowthOverview([
-      linear('a', [{ at: localMidnight(-2, 10) }]),
-      linear('b', [{ at: localMidnight(-1, 10) }]),
+      summary('a', [localMidnight(-2, 10)]),
+      summary('b', [localMidnight(-1, 10)]),
     ])
     expect(overview.currentStreak).toBe(2)
   })

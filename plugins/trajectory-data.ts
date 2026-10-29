@@ -203,7 +203,10 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         const sessionIds: string[] = []
         if (dbFile) {
           try {
-            const rows = publicCtx.sqliteFor(dbFile.path).prepare('SELECT id FROM session').all() as {
+            const rows = publicCtx
+              .sqliteFor(dbFile.path)
+              .prepare('SELECT id FROM session')
+              .all() as {
               id: string
             }[]
             sessionIds.push(...rows.map((r) => String(r.id)))

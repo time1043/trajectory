@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import type { TrajectoryRow } from '@/app/derive'
-import type { Trajectory } from '@/domain/model/trajectory'
 
 import {
   applySessionFilters,
@@ -11,9 +10,13 @@ import {
   toggleSource,
 } from '@/app/stores/session-filter'
 
-import { makeTrajectory, text, at } from '../../fixtures'
-
-function row(provider: string, user: string, sessionId: string, title: string): TrajectoryRow {
+function row(
+  provider: string,
+  user: string,
+  sessionId: string,
+  title: string,
+  turnStarts: number[] = [],
+): TrajectoryRow {
   return {
     id: `${provider}:${user}:${sessionId}`,
     sourceId: `${provider}:${user}`,
@@ -21,9 +24,10 @@ function row(provider: string, user: string, sessionId: string, title: string): 
     user,
     sessionId,
     title,
-    startedAt: 0,
-    updatedAt: 0,
-    turnCount: 1,
+    startedAt: turnStarts[0] ?? 0,
+    updatedAt: turnStarts[turnStarts.length - 1] ?? 0,
+    turnCount: turnStarts.length,
+    turnStarts,
     primaryTopic: 'other',
   }
 }
@@ -35,6 +39,7 @@ function items(...rows: TrajectoryRow[]) {
 const deepl = row('deepseek', '1665434994-qq', 'c1', 'deepseek session')
 const claude = row('claude-code', 'oswin-m4a', 'a1', 'claude session')
 const zcode = row('zcode', 'oswin-m4a', 'z1', 'zcode session')
+const all = items(deepl, claude, zcode)
 
 describe('sources param serialization', () => {
   it('round-trips comma-joined keys', () => {
@@ -59,64 +64,23 @@ describe('sources param serialization', () => {
     expect(toggleSource(['a/b'], 'c/d')).toEqual(['a/b', 'c/d'])
     expect(toggleSource(['a/b', 'c/d'], 'a/b')).toEqual(['c/d'])
   })
-})
-
-describe('applySessionFilters', () => {
-  const all = items(deepl, claude, zcode)
-  const trajectories = new Map<string, Trajectory>()
-
-  it('filters by one or many source keys', () => {
-    expect(applySessionFilters(all, { sources: 'claude-code/oswin-m4a' }, trajectories)).toEqual([
-      claude,
-    ])
-    expect(
-      applySessionFilters(all, { sources: 'claude-code/oswin-m4a,zcode/oswin-m4a' }, trajectories),
-    ).toEqual([claude, zcode])
-  })
-
-  it('filters by q across title and prompt', () => {
-    expect(applySessionFilters(all, { q: 'PROMPT OF a1' }, trajectories)).toEqual([claude])
-  })
-
-  it('combines dimensions', () => {
-    expect(
-      applySessionFilters(
-        all,
-        { sources: 'claude-code/oswin-m4a,zcode/oswin-m4a', q: 'zcode' },
-        trajectories,
-      ),
-    ).toEqual([zcode])
-  })
-
-  it('matches date windows by turn activity', () => {
-    const inside = row('deepseek', '1665434994-qq', 'inside', 'inside window')
-    const outside = row('deepseek', '1665434994-qq', 'outside', 'outside window')
-    // two trajectories: one active on the window's day, one far past it
-    const active = {
-      ...makeTrajectory([{ id: 'u1', role: 'user', at: at(0), parent: null, parts: [text('q')] }]),
-      id: inside.id,
-    }
-    const stale = {
-      ...makeTrajectory([
-        { id: 'u1', role: 'user', at: at(0) - 400 * 86_400_000, parent: null, parts: [text('q')] },
-      ]),
-      id: outside.id,
-    }
-    const from = new Date(at(0)).toISOString().slice(0, 10)
-    const to = new Date(at(0) + 86_400_000).toISOString().slice(0, 10)
-    const result = applySessionFilters(
-      items(inside, outside),
-      { from, to },
-      new Map([
-        [inside.id, active],
-        [outside.id, stale],
-      ]),
-    )
-    expect(result.map((r) => r.sessionId)).toEqual(['inside'])
-  })
 
   it('keys sources by provider/user', () => {
     expect(sourceKey('claude-code', 'oswin-m4a')).toBe('claude-code/oswin-m4a')
+  })
+})
+
+describe('applySessionFilters', () => {
+  it('filters by one or many source keys', () => {
+    expect(applySessionFilters(all, { sources: 'claude-code/oswin-m4a' })).toEqual([claude])
+    expect(applySessionFilters(all, { sources: 'claude-code/oswin-m4a,zcode/oswin-m4a' })).toEqual([
+      claude,
+      zcode,
+    ])
+  })
+
+  it('filters by q across title and prompt', () => {
+    expect(applySessionFilters(all, { q: 'PROMPT OF a1' })).toEqual([claude])
   })
 
   it('narrows by tags with AND semantics', () => {
@@ -124,15 +88,42 @@ describe('applySessionFilters', () => {
       [claude.id, ['react', 'ddd']],
       [zcode.id, ['react']],
     ])
-    expect(applySessionFilters(all, { tags: 'react' }, trajectories, tagsBySession)).toEqual([
-      claude,
-      zcode,
+    expect(applySessionFilters(all, { tags: 'react' }, tagsBySession)).toEqual([claude, zcode])
+    expect(applySessionFilters(all, { tags: 'react,ddd' }, tagsBySession)).toEqual([claude])
+    expect(applySessionFilters(all, { tags: 'nonexistent' }, tagsBySession)).toEqual([])
+  })
+
+  it('combines dimensions', () => {
+    const tagsBySession = new Map([
+      [zcode.id, ['zcode-tag']],
+      [claude.id, ['zcode-tag']],
     ])
-    expect(applySessionFilters(all, { tags: 'react,ddd' }, trajectories, tagsBySession)).toEqual([
-      claude,
+    expect(
+      applySessionFilters(
+        all,
+        { sources: 'claude-code/oswin-m4a,zcode/oswin-m4a', tags: 'zcode-tag' },
+        tagsBySession,
+      ),
+    ).toEqual([claude, zcode])
+    expect(
+      applySessionFilters(
+        all,
+        { sources: 'deepseek/1665434994-qq', tags: 'zcode-tag' },
+        tagsBySession,
+      ),
+    ).toEqual([])
+  })
+
+  it('matches date windows by turn activity', () => {
+    // anchor the turn at UTC noon so the window is timezone-independent
+    const day = new Date()
+    day.setUTCHours(12, 0, 0, 0)
+    const dayStr = day.toISOString().slice(0, 10)
+    const inside = row('deepseek', '1665434994-qq', 'inside', 'inside window', [day.getTime()])
+    const outside = row('deepseek', '1665434994-qq', 'outside', 'outside window', [
+      day.getTime() - 400 * 86_400_000,
     ])
-    expect(applySessionFilters(all, { tags: 'nonexistent' }, trajectories, tagsBySession)).toEqual(
-      [],
-    )
+    const result = applySessionFilters(items(inside, outside), { from: dayStr, to: dayStr })
+    expect(result.map((r) => r.sessionId)).toEqual(['inside'])
   })
 })

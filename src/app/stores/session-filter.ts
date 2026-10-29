@@ -1,7 +1,4 @@
 import type { TrajectoryRow } from '@/app/derive'
-import type { Trajectory } from '@/domain/model/trajectory'
-
-import { buildTurns } from '@/domain/services/turn-builder'
 
 /**
  * The session filter: four dimensions (q, sources, date window), all owned by
@@ -61,7 +58,6 @@ export interface FilterableRow {
 export function applySessionFilters(
   items: readonly FilterableRow[],
   search: SessionSearch,
-  trajectories: ReadonlyMap<string, Trajectory>,
   tagsBySession: ReadonlyMap<string, readonly string[]> = new Map(),
 ): TrajectoryRow[] {
   let result = items
@@ -87,15 +83,8 @@ export function applySessionFilters(
   if (search.from || search.to) {
     const fromMs = search.from ? Date.parse(search.from) : Number.NEGATIVE_INFINITY
     const toMs = search.to ? Date.parse(search.to) + DAY_MS - 1 : Number.POSITIVE_INFINITY
-    result = result.filter((item) => {
-      const t = trajectories.get(item.row.id)
-      if (!t) return false
-      // any turn activity inside the window counts (heatmap accounting)
-      return buildTurns(t).some((turn) => {
-        const at = t.nodes.get(turn.inputNodeIds[0])?.at ?? t.startedAt
-        return at >= fromMs && at <= toMs
-      })
-    })
+    // any turn activity inside the window counts (heatmap accounting)
+    result = result.filter((i) => i.row.turnStarts.some((at) => at >= fromMs && at <= toMs))
   }
 
   return result.map((i) => i.row)
