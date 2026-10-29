@@ -7,14 +7,13 @@ import type { DailyActivity } from '@/domain/services/growth-analytics'
 import FloatingTooltip from '@/components/floating-tooltip'
 import { MONTH_SHORT, fmtDate } from '@/lib/format'
 
-const DAY = 86_400_000
 const WEEKS_PER_ROW = 53
 
 interface HeatCell {
   day: string
   count: number
   level: 0 | 1 | 2 | 3 | 4
-  future: boolean
+  inactive: boolean
 }
 
 const LEVEL_CLASS: Record<HeatCell['level'], string> = {
@@ -41,15 +40,10 @@ function mondayOf(d: Date): Date {
   return result
 }
 
-function formatLabel(d: Date): string {
-  return fmtDate(d.getTime()).slice(0, 7)
-}
-
 /**
- * GitHub-style heatmap, rows split by "trajectory years": 53-week rows anchored
- * at the first activity month (`2024.10 ->`) instead of calendar years — no
- * ragged short rows, and rows read as growth years. Under one year of data it
- * degrades to a single left-aligned row.
+ * GitHub-style heatmap over calendar years (Jan-Dec), the most recent year on
+ * top. Days outside the data range render as invisible placeholders so every
+ * row stays week-aligned with its month labels.
  */
 export default function ActivityHeatmap({
   daily,
@@ -69,36 +63,34 @@ export default function ActivityHeatmap({
     if (!firstAt || !lastAt) return []
     const counts = new Map(daily.map((d) => [d.day, d.turns]))
 
-    const anchor = mondayOf(new Date(firstAt))
-    anchor.setDate(1) // first day of the first active month, snapped back to Monday
-    const rowStarts: Date[] = []
-    const rowCount = Math.max(1, Math.ceil((lastAt - anchor.getTime()) / DAY / (7 * WEEKS_PER_ROW)))
-    for (let r = 0; r < rowCount; r++) {
-      const start = new Date(anchor)
-      start.setMonth(anchor.getMonth() + 12 * r)
-      rowStarts.push(mondayOf(start))
-    }
-
+    const first = new Date(firstAt)
+    first.setHours(0, 0, 0, 0)
     const last = new Date(lastAt)
     last.setHours(0, 0, 0, 0)
 
-    return rowStarts.map((rowStart) => {
+    // calendar years Jan-Dec, the most recent year on top
+    const years: number[] = []
+    for (let y = last.getFullYear(); y >= first.getFullYear(); y--) years.push(y)
+
+    return years.map((year) => {
+      const rowStart = mondayOf(new Date(year, 0, 1))
       const columns: { label: string | null; cells: HeatCell[] }[] = []
       let prevMonth = -1
       let lastLabelWeek = -99
       for (let w = 0; w < WEEKS_PER_ROW; w++) {
         const weekStart = new Date(rowStart)
         weekStart.setDate(rowStart.getDate() + 7 * w)
-        if (weekStart.getTime() > last.getTime() + 7 * DAY) break
+        if (weekStart.getFullYear() > year) break
 
         const cells: HeatCell[] = []
         for (let d = 0; d < 7; d++) {
           const date = new Date(weekStart)
           date.setDate(weekStart.getDate() + d)
-          const future = date.getTime() > last.getTime()
+          // days outside the data range keep the grid geometry but stay invisible
+          const inactive = date < first || date > last
           const day = fmtDate(date.getTime())
           const count = counts.get(day) ?? 0
-          cells.push({ day, count, level: levelOf(count), future })
+          cells.push({ day, count, level: levelOf(count), inactive })
         }
 
         // label on month change, at least 3 weeks after the previous one, or the text overlaps
@@ -111,7 +103,7 @@ export default function ActivityHeatmap({
         prevMonth = month
         columns.push({ label, cells })
       }
-      return { start: rowStart, columns }
+      return { year, columns }
     })
   }, [daily, firstAt, lastAt])
 
@@ -125,7 +117,7 @@ export default function ActivityHeatmap({
       {rows.map((row, ri) => (
         <div key={ri} className="flex items-start gap-3">
           <div className="w-20 shrink-0 font-mono text-xs whitespace-nowrap text-low">
-            {formatLabel(row.start)} →
+            {row.year}
           </div>
           <div className="flex gap-[3px]">
             {row.columns.map((col, ci) => (
@@ -138,7 +130,7 @@ export default function ActivityHeatmap({
                   )}
                 </div>
                 {col.cells.map((cell) => {
-                  if (cell.future) return <div key={cell.day} className="size-[10px] opacity-0" />
+                  if (cell.inactive) return <div key={cell.day} className="size-[10px] opacity-0" />
                   return (
                     <button
                       key={cell.day}
