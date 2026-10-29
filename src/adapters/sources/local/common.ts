@@ -17,6 +17,8 @@ export const TOOL_OUTPUT_PREVIEW_CHARS = 2000
 export const TOOL_OUTPUT_HARD_CAP_CHARS = 16_000
 export const REASONING_CAP_CHARS = 8000
 export const TEXT_HARD_CAP_CHARS = 32_000
+/** safety cap for tool titles — CSS truncates the collapsed line anyway */
+export const TITLE_CAP_CHARS = 2000
 
 export function truncate(
   text: string,
@@ -59,8 +61,14 @@ export function titleFromPrompt(text: string, max = 80): string {
   return single.length > max ? `${single.slice(0, max)}…` : single
 }
 
-/** Pick the most display-worthy string from a tool input (command, path, pattern…) */
+/** Pick the most display-worthy string from a tool input (command, path,
+ * pattern…) — kept FULL: the collapsed one-liner truncates via CSS, and the
+ * expanded panel must show the complete input. */
 export function toolTitleFromInput(input: unknown): string | undefined {
+  if (typeof input === 'string') {
+    const single = input.replace(/\s+/g, ' ').trim()
+    return single ? single.slice(0, TITLE_CAP_CHARS) : undefined
+  }
   if (!input || typeof input !== 'object') return undefined
   const record = input as Record<string, unknown>
   const keys = [
@@ -82,8 +90,7 @@ export function toolTitleFromInput(input: unknown): string | undefined {
       ? value.filter((v) => typeof v === 'string').join(' ')
       : value
     if (typeof candidate === 'string' && candidate.trim()) {
-      const single = candidate.replace(/\s+/g, ' ').trim()
-      return single.length > 60 ? `${single.slice(0, 60)}…` : single
+      return candidate.replace(/\s+/g, ' ').trim().slice(0, TITLE_CAP_CHARS)
     }
   }
   return undefined

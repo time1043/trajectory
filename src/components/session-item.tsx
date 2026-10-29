@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 
 import type { TrajectoryRow } from '@/app/derive'
-import type { SessionSearch } from '@/app/stores/sessions'
+import type { SessionSearch } from '@/app/stores/session-filter'
 
 import { topicLabel } from '@/app/derive'
 import ProviderDot from '@/components/provider-dot'

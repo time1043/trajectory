@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 
 import type { TrajectoryRow } from '@/app/derive'
-import type { SessionSearch } from '@/app/stores/sessions'
+import type { SessionSearch } from '@/app/stores/session-filter'
 
 import SessionItem from './session-item'
 

@@ -204,6 +204,7 @@ export const codexAdapter: SourceAdapter = {
 
     return {
       sourceId: identity.sourceId,
+      provider: identity.provider,
       providerLabel: identity.providerLabel,
       user: identity.user,
       profile: null,
