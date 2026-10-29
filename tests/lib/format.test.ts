@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { fmtBytes, fmtChars, fmtDate, fmtInt, fmtLatency, fmtTime } from './format'
+import { fmtBytes, fmtChars, fmtDate, fmtInt, fmtLatency, fmtTime } from '@/lib/format'
 
 describe('fmtLatency', () => {
   it('formats seconds without overflow inside a minute', () => {

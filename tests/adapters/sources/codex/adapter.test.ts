@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SourceManifest } from '@/domain/ports/data-host'
 
-import { codexAdapter } from './adapter'
+import { codexAdapter } from '@/adapters/sources/codex/adapter'
 
 const manifest: SourceManifest = {
   dirName: 'local/codex',

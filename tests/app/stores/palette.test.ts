@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import type { TrajectoryRow } from '@/app/derive'
+import type { PaletteItem } from '@/app/stores/palette'
 
-import type { PaletteItem } from './palette'
-
-import { scorePaletteItem } from './palette'
+import { scorePaletteItem } from '@/app/stores/palette'
 
 function item(title: string, text: string): PaletteItem {
   const row = {

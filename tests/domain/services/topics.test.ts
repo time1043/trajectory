@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TopicDef } from './topics'
+import type { TopicDef } from '@/domain/services/topics'
 
-import { OTHER_TOPIC, assignTopic } from './topics'
+import { OTHER_TOPIC, assignTopic } from '@/domain/services/topics'
 
 const defs: readonly TopicDef[] = [
   { id: 'coding', label: 'Coding', patterns: ['react', '报错'] },

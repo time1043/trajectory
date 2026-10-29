@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Trajectory } from './trajectory'
+import type { Trajectory } from '@/domain/model/trajectory'
 
-import { makeTrajectory, text, at, reasoning } from '../../test/fixtures'
-import { checkInvariants } from './invariants'
+import { checkInvariants } from '@/domain/model/invariants'
+
+import { makeTrajectory, text, at, reasoning } from '../../fixtures'
 
 function spec(
   id: string,

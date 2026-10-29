@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { at, makeTrajectory, search, text } from '../../test/fixtures'
-import { buildDocumentView, resolveCitation } from './document-view'
+import { buildDocumentView, resolveCitation } from '@/domain/services/document-view'
+
+import { at, makeTrajectory, search, text } from '../../fixtures'
 
 describe('buildDocumentView', () => {
   it('produces one block per path node with latency on assistant blocks', () => {

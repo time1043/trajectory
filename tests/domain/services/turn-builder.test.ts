@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { at, makeTrajectory, reasoning, text, tool } from '../../test/fixtures'
-import { buildTurns, switchVariant } from './turn-builder'
+import { buildTurns, switchVariant } from '@/domain/services/turn-builder'
+
+import { at, makeTrajectory, reasoning, text, tool } from '../../fixtures'
 
 describe('buildTurns', () => {
   it('linearizes user/assistant pairs into turns', () => {

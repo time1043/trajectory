@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { NodeDraft } from './common'
+import type { NodeDraft } from '@/adapters/sources/local/common'
 
 import {
   buildTrajectory,
@@ -9,7 +9,7 @@ import {
   toolTitleFromInput,
   toNodes,
   truncate,
-} from './common'
+} from '@/adapters/sources/local/common'
 
 describe('truncate', () => {
   it('leaves short text untouched', () => {

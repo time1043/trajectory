@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
+import type { RawConversation } from '@/adapters/sources/deepseek/types'
 import type { SourceManifest } from '@/domain/ports/data-host'
 
-import type { RawConversation } from './types'
-
-import { parseDeepseek } from './parse'
+import { parseDeepseek } from '@/adapters/sources/deepseek/parse'
 
 const manifest: SourceManifest = {
   dirName: 'web/deepseek',

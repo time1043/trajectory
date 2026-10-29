@@ -1,7 +1,7 @@
 import { atom } from 'jotai'
 import { describe, expect, it } from 'vitest'
 
-import { atomFamily } from './atom-family'
+import { atomFamily } from '@/lib/atom-family'
 
 describe('atomFamily', () => {
   it('caches atoms per param and calls create once', () => {

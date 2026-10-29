@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { PROVIDER_COLORS, resolveProviderColor } from './provider-dot'
+import { PROVIDER_COLORS, resolveProviderColor } from '@/components/provider-dot'
 
 describe('resolveProviderColor', () => {
   it('resolves direct brand keys', () => {

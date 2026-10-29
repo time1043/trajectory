@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SourceManifest } from '@/domain/ports/data-host'
 
-import { piAdapter } from './adapter'
+import { piAdapter } from '@/adapters/sources/pi/adapter'
 
 const manifest: SourceManifest = {
   dirName: 'local/pi',

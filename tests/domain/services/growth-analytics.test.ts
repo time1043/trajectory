@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import type { NodeDraft } from '../../adapters/sources/local/common'
-import type { Trajectory } from '../model/trajectory'
+import type { NodeDraft } from '@/adapters/sources/local/common'
+import type { Trajectory } from '@/domain/model/trajectory'
 
-import { toNodes } from '../../adapters/sources/local/common'
-import { computeGrowthOverview } from './growth-analytics'
+import { toNodes } from '@/adapters/sources/local/common'
+import { computeGrowthOverview } from '@/domain/services/growth-analytics'
 
 const HOUR = 3_600_000
 const DAY = 86_400_000

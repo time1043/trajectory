@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import type { QuerySqlite, SourceManifest } from '@/domain/ports/data-host'
 
-import { opencodeAdapter } from '../opencode/adapter'
-import { zcodeAdapter } from '../zcode/adapter'
+import { opencodeAdapter } from '@/adapters/sources/opencode/adapter'
+import { zcodeAdapter } from '@/adapters/sources/zcode/adapter'
 
 const manifest: SourceManifest = {
   dirName: 'local/test',
