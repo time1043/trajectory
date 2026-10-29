@@ -19,7 +19,12 @@ const SQLITE_SUFFIXES = new Set(['.sqlite', '.sqlite3', '.db'])
 
 // minimal structural typing so the plugin does not depend on @types/better-sqlite3 shapes
 interface SqliteDatabase {
-  prepare(sql: string): { all(...params: unknown[]): unknown[] }
+  prepare(sql: string): {
+    all(...params: unknown[]): unknown[]
+    run(...params: unknown[]): unknown
+    get(...params: unknown[]): unknown
+  }
+  exec(sql: string): unknown
   close(): void
 }
 type SqliteCtor = new (
@@ -39,6 +44,9 @@ function getSqlite(): SqliteCtor | null {
   return sqliteCtor
 }
 
+export const DATA_DIR = 'data'
+export const DATA_PUBLIC_DIR = 'data-public'
+
 /**
  * Dev-only data host for local trajectory exports.
  *
@@ -47,110 +55,271 @@ function getSqlite(): SqliteCtor | null {
  * 2. raw file bytes for paths that appear in a manifest
  * 3. read-only SQL over SQLite files that appear in a manifest — a read-only
  *    connection also sees WAL data, which a wasm single-file reader cannot
- * 4. chokidar watch -> HMR custom event when data changes
+ * 4. publish/unpublish: copy or remove one session's data under data-public/
+ * 5. chokidar watch -> HMR custom event when data changes
+ *
+ * Two roots: the dev server serves data/ (everything), `vite preview` serves
+ * data-public/ (only published sessions) — the operator's view of what a
+ * static deployment would show.
  */
 export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
-  const dataDir = opts.dataDir ?? 'data'
+  const dataDir = opts.dataDir ?? DATA_DIR
   let realRoot = ''
-  let manifestCache: { at: number; value: SourceManifest[] } | null = null
-  const sqliteHandles = new Map<string, SqliteDatabase>()
+  let publicRoot = ''
 
-  async function scan(): Promise<SourceManifest[]> {
-    if (manifestCache && Date.now() - manifestCache.at < MANIFEST_TTL_MS) return manifestCache.value
+  interface RootContext {
+    root: string
+    scan(): Promise<SourceManifest[]>
+    sqliteFor(requested: string): SqliteDatabase
+    dropHandlesFor(prefix: string): void
+  }
 
-    const manifests: SourceManifest[] = []
-    let groups: string[] = []
-    try {
-      groups = await fsp.readdir(realRoot)
-    } catch {
-      return manifests
-    }
+  function makeContext(root: string): RootContext {
+    let manifestCache: { at: number; value: SourceManifest[] | null } = { at: 0, value: null }
+    const sqliteHandles = new Map<string, SqliteDatabase>()
 
-    for (const group of groups) {
-      const groupPath = path.join(realRoot, group)
-      let groupStat: fs.Stats
+    async function scan(): Promise<SourceManifest[]> {
+      if (manifestCache.value && Date.now() - manifestCache.at < MANIFEST_TTL_MS)
+        return manifestCache.value
+
+      const manifests: SourceManifest[] = []
+      let groups: string[] = []
       try {
-        groupStat = await fsp.stat(groupPath)
+        groups = await fsp.readdir(root)
       } catch {
-        continue
+        manifestCache = { at: Date.now(), value: manifests }
+        return manifests
       }
-      if (!groupStat.isDirectory()) continue
 
-      // layout: <group>/<provider>/<user>/<data...>
-      let providers: string[] = []
-      try {
-        providers = await fsp.readdir(groupPath)
-      } catch {
-        continue
-      }
-      for (const provider of providers.sort()) {
-        const providerPath = path.join(groupPath, provider)
-        let users: string[] = []
+      for (const group of groups) {
+        const groupPath = path.join(root, group)
+        let groupStat: fs.Stats
         try {
-          users = await fsp.readdir(providerPath)
+          groupStat = await fsp.stat(groupPath)
         } catch {
           continue
         }
-        for (const user of users.sort()) {
-          const sourcePath = path.join(providerPath, user)
-          let sourceStat: fs.Stats
+        if (!groupStat.isDirectory()) continue
+
+        // layout: <group>/<provider>/<user>/<data...>
+        let providers: string[] = []
+        try {
+          providers = await fsp.readdir(groupPath)
+        } catch {
+          continue
+        }
+        for (const provider of providers.sort()) {
+          const providerPath = path.join(groupPath, provider)
+          let users: string[] = []
           try {
-            sourceStat = await fsp.stat(sourcePath)
+            users = await fsp.readdir(providerPath)
           } catch {
             continue
           }
-          if (!sourceStat.isDirectory()) continue
-          const dirName = `${group}/${provider}/${user}`
-
-          const files: SourceFileEntry[] = []
-          const walk = async (dir: string, prefix: string): Promise<void> => {
-            if (files.length >= MAX_SCAN_FILES) return
-            let entries: fs.Dirent[]
+          for (const user of users.sort()) {
+            const sourcePath = path.join(providerPath, user)
+            let sourceStat: fs.Stats
             try {
-              entries = await fsp.readdir(dir, { withFileTypes: true })
+              sourceStat = await fsp.stat(sourcePath)
             } catch {
-              return
+              continue
             }
-            for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-              const rel = `${prefix}${entry.name}`
-              const full = path.join(dir, entry.name)
-              if (entry.isDirectory()) {
-                await walk(full, `${rel}/`)
-              } else if (entry.isFile()) {
-                // transient sqlite sidecars and OS noise are not data
-                if (entry.name.startsWith('.') || /-wal$|-shm$/.test(entry.name)) continue
-                const fileStat = await fsp.stat(full)
-                files.push({
-                  path: `${dirName}/${rel}`,
-                  size: fileStat.size,
-                  mtimeMs: fileStat.mtimeMs,
-                })
-              }
+            if (!sourceStat.isDirectory()) continue
+            const dirName = `${group}/${provider}/${user}`
+
+            const files: SourceFileEntry[] = []
+            const walk = async (dir: string, prefix: string): Promise<void> => {
               if (files.length >= MAX_SCAN_FILES) return
+              let entries: fs.Dirent[]
+              try {
+                entries = await fsp.readdir(dir, { withFileTypes: true })
+              } catch {
+                return
+              }
+              for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+                const rel = `${prefix}${entry.name}`
+                const full = path.join(dir, entry.name)
+                if (entry.isDirectory()) {
+                  await walk(full, `${rel}/`)
+                } else if (entry.isFile()) {
+                  // transient sqlite sidecars and OS noise are not data
+                  if (entry.name.startsWith('.') || /-wal$|-shm$/.test(entry.name)) continue
+                  const fileStat = await fsp.stat(full)
+                  files.push({
+                    path: `${dirName}/${rel}`,
+                    size: fileStat.size,
+                    mtimeMs: fileStat.mtimeMs,
+                  })
+                }
+                if (files.length >= MAX_SCAN_FILES) return
+              }
             }
+            await walk(sourcePath, '')
+            manifests.push({ dirName, files })
           }
-          await walk(sourcePath, '')
-          manifests.push({ dirName, files })
+        }
+      }
+
+      manifestCache = { at: Date.now(), value: manifests }
+      return manifests
+    }
+
+    function sqliteFor(requested: string): SqliteDatabase {
+      const cached = sqliteHandles.get(requested)
+      if (cached) return cached
+      const Database = getSqlite()
+      if (!Database) throw new Error('better-sqlite3 is not installed')
+      const resolved = path.resolve(root, requested)
+      const db = new Database(resolved, { readonly: true, fileMustExist: true })
+      sqliteHandles.set(requested, db)
+      return db
+    }
+
+    function dropHandlesFor(prefix: string): void {
+      for (const [key, db] of sqliteHandles) {
+        if (key === prefix || key.startsWith(`${prefix}/`)) {
+          db.close()
+          sqliteHandles.delete(key)
         }
       }
     }
 
-    manifestCache = { at: Date.now(), value: manifests }
-    return manifests
+    return { root, scan, sqliteFor, dropHandlesFor }
   }
 
-  function sqliteFor(requested: string): SqliteDatabase {
-    const cached = sqliteHandles.get(requested)
-    if (cached) return cached
-    const Database = getSqlite()
-    if (!Database) throw new Error('better-sqlite3 is not installed')
-    const resolved = path.resolve(realRoot, requested)
-    const db = new Database(resolved, { readonly: true, fileMustExist: true })
-    sqliteHandles.set(requested, db)
-    return db
+  // contexts are created after configResolved resolves the real paths
+  let dev: RootContext | null = null
+  let preview: RootContext | null = null
+
+  /** One published session = one normalized body file + the shared index. */
+  function publishEndpoints(privateCtx: RootContext, publicCtx: RootContext) {
+    const publicRoot = publicCtx.root
+    async function publishedList(): Promise<unknown> {
+      const manifests = await publicCtx.scan()
+      const out: { dirName: string; provider: string; user: string; sessionIds: string[] }[] = []
+      for (const m of manifests) {
+        const [, provider, user] = m.dirName.split('/')
+        const dbFile = m.files.find((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))
+        const sessionIds: string[] = []
+        if (dbFile) {
+          try {
+            const rows = publicCtx.sqliteFor(dbFile.path).prepare('SELECT id FROM session').all() as {
+              id: string
+            }[]
+            sessionIds.push(...rows.map((r) => String(r.id)))
+          } catch {
+            // an unreadable public db publishes nothing
+          }
+        } else {
+          for (const f of m.files) {
+            const uuid =
+              /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/.exec(
+                f.path,
+              )?.[1]
+            if (uuid) sessionIds.push(uuid)
+          }
+        }
+        out.push({ dirName: m.dirName, provider, user, sessionIds })
+      }
+      return out
+    }
+
+    async function publishOne(payload: {
+      provider: string
+      user: string
+      sessionId: string
+      publish: boolean
+    }): Promise<unknown> {
+      const manifests = await privateCtx.scan()
+      const suffix = `${payload.provider}/${payload.user}`
+      const manifest = manifests.find((m) => m.dirName.endsWith(suffix))
+      if (!manifest) throw new Error(`source not found: ${suffix}`)
+
+      const publicSourceDir = path.join(publicRoot, manifest.dirName)
+      await fsp.mkdir(publicSourceDir, { recursive: true })
+
+      const dbFile = manifest.files.find((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))
+      if (dbFile) {
+        // sqlite sources: copy the session's rows into a mirrored public db
+        const publicDbPath = path.join(publicRoot, dbFile.path)
+        const Database = getSqlite()
+        if (!Database) throw new Error('better-sqlite3 is not installed')
+        const privateDb = privateCtx.sqliteFor(dbFile.path)
+        const publicDb = new Database(publicDbPath)
+
+        try {
+          if (payload.publish) {
+            // mirror the schema once (tables then the rest), straight from the private db
+            const schema = privateDb
+              .prepare(
+                "SELECT sql FROM sqlite_master WHERE sql NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END",
+              )
+              .all() as { sql: string }[]
+            for (const { sql } of schema) publicDb.exec(sql)
+
+            const insert = (table: string, rows: Record<string, unknown>[]) => {
+              for (const row of rows) {
+                const cols = Object.keys(row)
+                publicDb
+                  .prepare(
+                    `INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`,
+                  )
+                  .run(...cols.map((c) => row[c]))
+              }
+            }
+            insert(
+              'session',
+              privateDb
+                .prepare('SELECT * FROM session WHERE id = ?')
+                .all(payload.sessionId) as Record<string, unknown>[],
+            )
+            insert(
+              'message',
+              privateDb
+                .prepare('SELECT * FROM message WHERE session_id = ?')
+                .all(payload.sessionId) as Record<string, unknown>[],
+            )
+            insert(
+              'part',
+              privateDb
+                .prepare('SELECT * FROM part WHERE session_id = ?')
+                .all(payload.sessionId) as Record<string, unknown>[],
+            )
+          } else {
+            publicDb.prepare('DELETE FROM part WHERE session_id = ?').run(payload.sessionId)
+            publicDb.prepare('DELETE FROM message WHERE session_id = ?').run(payload.sessionId)
+            publicDb.prepare('DELETE FROM session WHERE id = ?').run(payload.sessionId)
+          }
+        } finally {
+          privateDb.close()
+          publicDb.close()
+        }
+      } else {
+        // jsonl sources: one file per session, the BASE name carries the id
+        // (subagent files only contain the parent id in their directory path)
+        const file = manifest.files.find((f) => path.basename(f.path).includes(payload.sessionId))
+        if (!file) throw new Error(`session file not found: ${payload.sessionId}`)
+        const target = path.join(publicRoot, file.path)
+        if (payload.publish) {
+          await fsp.mkdir(path.dirname(target), { recursive: true })
+          await fsp.copyFile(path.resolve(privateCtx.root, file.path), target)
+        } else {
+          await fsp.rm(target, { force: true })
+        }
+      }
+
+      publicCtx.dropHandlesFor(manifest.dirName)
+      return { ok: true, published: payload.publish, list: await publishedList() }
+    }
+
+    return { publishedList, publishOne }
   }
 
-  function createApiMiddleware() {
+  function makeApiMiddleware(ctx: RootContext, publicCtx: RootContext | null) {
+    const { publishedList, publishOne } = publicCtx
+      ? publishEndpoints(ctx, publicCtx)
+      : { publishedList: null, publishOne: null }
+
     const readBody = (req: import('node:http').IncomingMessage): Promise<string> =>
       new Promise((resolve, reject) => {
         let body = ''
@@ -168,7 +337,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       if (!url.pathname.startsWith('/@api/')) return next()
 
       if (url.pathname === '/@api/sources') {
-        const manifests = await scan()
+        const manifests = await ctx.scan()
         res.setHeader('Content-Type', 'application/json')
         res.end(JSON.stringify(manifests))
         return
@@ -181,15 +350,15 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
           res.end('missing ?path=')
           return
         }
-        const manifests = await scan()
+        const manifests = await ctx.scan()
         const known = manifests.some((m) => m.files.some((f) => f.path === requested))
         if (!known) {
           res.statusCode = 404
           res.end('path not in manifest')
           return
         }
-        const resolved = path.resolve(realRoot, requested)
-        if (path.relative(realRoot, resolved).startsWith('..')) {
+        const resolved = path.resolve(ctx.root, requested)
+        if (path.relative(ctx.root, resolved).startsWith('..')) {
           res.statusCode = 403
           res.end('forbidden')
           return
@@ -218,7 +387,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
             res.end('missing path or sql')
             return
           }
-          const manifests = await scan()
+          const manifests = await ctx.scan()
           const known = manifests.some((m) =>
             m.files.some((f) => f.path === body.path && SQLITE_SUFFIXES.has(path.extname(f.path))),
           )
@@ -227,7 +396,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
             res.end('database not in manifest')
             return
           }
-          if (path.relative(realRoot, path.resolve(realRoot, body.path)).startsWith('..')) {
+          if (path.relative(ctx.root, path.resolve(ctx.root, body.path)).startsWith('..')) {
             res.statusCode = 403
             res.end('forbidden')
             return
@@ -237,10 +406,49 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
             res.end('read-only: only SELECT/WITH statements')
             return
           }
-          const db = sqliteFor(body.path)
+          const db = ctx.sqliteFor(body.path)
           const rows = db.prepare(body.sql).all(...(body.params ?? [])) as Record<string, unknown>[]
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify({ rows } satisfies SqliteQueryResult))
+        } catch (error) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(error) }))
+        }
+        return
+      }
+
+      if (url.pathname === '/@api/published' && publishedList) {
+        try {
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify(await publishedList()))
+        } catch (error) {
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: String(error) }))
+        }
+        return
+      }
+
+      if (url.pathname === '/@api/publish' && req.method === 'POST' && publishOne) {
+        try {
+          const body = JSON.parse(await readBody(req)) as {
+            provider?: string
+            user?: string
+            sessionId?: string
+            publish?: boolean
+          }
+          if (!body.provider || !body.user || !body.sessionId) {
+            res.statusCode = 400
+            res.end('missing provider/user/sessionId')
+            return
+          }
+          const result = await publishOne({
+            provider: body.provider,
+            user: body.user,
+            sessionId: body.sessionId,
+            publish: body.publish !== false,
+          })
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify(result))
         } catch (error) {
           res.statusCode = 500
           res.end(JSON.stringify({ error: String(error) }))
@@ -260,52 +468,60 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
     configResolved(config) {
       const root = path.resolve(config.root, dataDir)
       try {
-        // data/ may be a symlink outside the repo — resolve once
+        // data/ may be a symlink to a directory outside the repo — resolve once
         realRoot = fs.realpathSync(root)
         config.server.fs.allow.push(realRoot)
       } catch {
         realRoot = root
         config.logger.warn(`[trajectory-data] data dir not found: ${root}`)
       }
+
+      // preview serves the public dataset; fall back to the private root
+      const publicCandidate = path.resolve(config.root, DATA_PUBLIC_DIR)
+      try {
+        publicRoot = fs.realpathSync(publicCandidate)
+        config.server.fs.allow.push(publicRoot)
+      } catch {
+        publicRoot = realRoot
+      }
+
+      dev = makeContext(realRoot)
+      preview = makeContext(publicRoot)
     },
 
     configureServer(server: ViteDevServer) {
-      // ---- watch -> HMR ----
-      if (realRoot) {
-        server.watcher.add(realRoot)
-        let timer: ReturnType<typeof setTimeout> | null = null
-        const notify = (filePath: string) => {
-          if (!filePath.startsWith(realRoot)) return
-          // transient sqlite sidecars are written constantly by live agents — a
-          // read-only connection sees WAL data anyway, so they are not changes
-          const base = path.basename(filePath)
-          if (base.startsWith('.') || /-wal$|-shm$/.test(base)) return
-          manifestCache = null
-          for (const [key, db] of sqliteHandles) {
-            if (filePath.startsWith(path.resolve(realRoot, key))) {
-              db.close()
-              sqliteHandles.delete(key)
-            }
-          }
-          if (timer) clearTimeout(timer)
-          timer = setTimeout(() => {
-            server.ws.send({
-              type: 'custom',
-              event: DATA_API_HMR_EVENT,
-              data: { path: path.relative(realRoot, filePath) },
-            })
-          }, 500)
-        }
-        server.watcher.on('change', notify)
-        server.watcher.on('add', notify)
-        server.watcher.on('unlink', notify)
-      }
+      const ctx = dev!
+      const pub = preview!
 
-      // ---- endpoints ----
-      server.middlewares.use(createApiMiddleware())
+      // ---- watch -> HMR ----
+      server.watcher.add(ctx.root)
+      let timer: ReturnType<typeof setTimeout> | null = null
+      const notify = (filePath: string) => {
+        if (!filePath.startsWith(ctx.root)) return
+        // transient sqlite sidecars are written constantly by live agents — a
+        // read-only connection sees WAL data anyway, so they are not changes
+        const base = path.basename(filePath)
+        if (base.startsWith('.') || /-wal$|-shm$/.test(base)) return
+        ctx.dropHandlesFor(
+          path.relative(ctx.root, filePath).split(path.sep).slice(0, 3).join(path.sep),
+        )
+        if (timer) clearTimeout(timer)
+        timer = setTimeout(() => {
+          server.ws.send({
+            type: 'custom',
+            event: DATA_API_HMR_EVENT,
+            data: { path: path.relative(ctx.root, filePath) },
+          })
+        }, 500)
+      }
+      server.watcher.on('change', notify)
+      server.watcher.on('add', notify)
+      server.watcher.on('unlink', notify)
+
+      server.middlewares.use(makeApiMiddleware(ctx, pub))
 
       // startup log
-      void scan().then((manifests) => {
+      void ctx.scan().then((manifests) => {
         if (!manifests.length) return
         const list = manifests.map((m) => `  · ${m.dirName} (${m.files.length} files)`).join('\n')
         server.config.logger.info(`[trajectory-data] sources:\n${list}`, { clear: false })
@@ -313,7 +529,13 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
     },
 
     configurePreviewServer(server: PreviewServer) {
-      server.middlewares.use(createApiMiddleware())
+      const ctx = preview!
+      server.middlewares.use(makeApiMiddleware(ctx, null))
+
+      void ctx.scan().then((manifests) => {
+        const list = manifests.map((m) => `  · ${m.dirName} (${m.files.length} files)`).join('\n')
+        server.config.logger.info(`[trajectory-data] public sources:\n${list}`, { clear: false })
+      })
     },
   }
 }
