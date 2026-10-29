@@ -12,6 +12,7 @@ import EmptyState from '@/components/empty-state'
 import { withSuspense } from '@/components/loading'
 import MiniToc, { type MiniTocEntry } from '@/components/mini-toc'
 import ProviderDot from '@/components/provider-dot'
+import PublishToggle from '@/components/publish-toggle'
 import { MessageBlock, ReferenceList } from '@/components/session-parts'
 import TagEditor from '@/components/tag-editor'
 import { trajectoryIdFromParts } from '@/domain/model/identity'
@@ -99,6 +100,11 @@ function SessionContent({ trajectory, blocks, references, citationWindows, model
             <span>{sourceParts.user}</span>
           </>
         )}
+        <PublishToggle
+          provider={trajectory.provider}
+          user={trajectory.user}
+          sessionId={trajectory.sessionId}
+        />
       </div>
 
       <TagEditor trajectoryId={trajectory.id} shortcut />
