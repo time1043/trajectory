@@ -81,19 +81,22 @@ function UserBlock({
           />
         )}
       </div>
-      {texts.map((part, i) => (
-        <div
-          key={i}
-          className={`mt-2 border-l-2 pl-4 whitespace-pre-wrap ${
-            rewritten ? 'border-line text-sm text-low' : 'border-line-strong text-hi/85'
-          }`}
-        >
-          {part.text}
-        </div>
-      ))}
-      {attachments.map((part, i) => (
-        <FileChips key={i} files={part.files} />
-      ))}
+      <div
+        className={`mt-2 rounded-md border-l-2 py-3 pr-4 pl-4 ${
+          rewritten
+            ? 'border-line bg-elevated/50 text-sm text-low'
+            : 'border-accent bg-accent-soft text-hi/90'
+        }`}
+      >
+        {texts.map((part, i) => (
+          <div key={i} className={`${i > 0 ? 'mt-3' : ''} whitespace-pre-wrap`}>
+            {part.text}
+          </div>
+        ))}
+        {attachments.map((part, i) => (
+          <FileChips key={i} files={part.files} />
+        ))}
+      </div>
     </div>
   )
 }
