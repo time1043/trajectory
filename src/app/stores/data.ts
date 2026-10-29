@@ -96,3 +96,12 @@ export const sourceMetasAtom = atom(async (get) => {
     return { id: s.dirName, label: s.dirName, count: 0, ok: false as const }
   })
 })
+
+/**
+ * Adapter label per source id — the one naming used everywhere a source is
+ * named (sidebar, reading view) so it never diverges between surfaces.
+ */
+export const sourceLabelsAtom = atom(async (get) => {
+  const metas = await get(sourceMetasAtom)
+  return new Map(metas.map((m) => [m.id, m.label]))
+})
