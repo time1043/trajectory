@@ -1,9 +1,10 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import type { EpochMs } from '@/domain/model/identity'
 import type { DailyActivity } from '@/domain/services/growth-analytics'
 
+import FloatingTooltip from '@/components/floating-tooltip'
 import { MONTH_SHORT, fmtDate } from '@/lib/format'
 
 const DAY = 86_400_000
@@ -60,6 +61,9 @@ export default function ActivityHeatmap({
   lastAt: EpochMs
 }) {
   const navigate = useNavigate()
+  const [hover, setHover] = useState<{ x: number; y: number; count: number; day: string } | null>(
+    null,
+  )
 
   const rows = useMemo(() => {
     if (!firstAt || !lastAt) return []
@@ -115,6 +119,9 @@ export default function ActivityHeatmap({
 
   return (
     <div className="flex flex-col gap-5 overflow-x-auto pb-2">
+      <FloatingTooltip point={hover ? { x: hover.x, y: hover.y } : null}>
+        {hover && (hover.count > 0 ? `${hover.count} turns · ${hover.day}` : hover.day)}
+      </FloatingTooltip>
       {rows.map((row, ri) => (
         <div key={ri} className="flex items-start gap-3">
           <div className="w-20 shrink-0 font-mono text-xs whitespace-nowrap text-low">
@@ -139,14 +146,18 @@ export default function ActivityHeatmap({
                       onClick={() =>
                         void navigate({ to: '/sessions', search: { from: cell.day, to: cell.day } })
                       }
-                      className={`group relative size-[10px] rounded-[2px] transition-transform duration-100 hover:scale-125 ${LEVEL_CLASS[cell.level]}`}
-                    >
-                      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 hidden -translate-x-1/2 pb-1.5 group-hover:block">
-                        <span className="block rounded-md border border-line bg-panel px-2 py-1 font-mono text-xs whitespace-nowrap text-mid shadow-sm">
-                          {cell.count > 0 ? `${cell.count} turns · ${cell.day}` : `${cell.day}`}
-                        </span>
-                      </span>
-                    </button>
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setHover({
+                          x: rect.left + rect.width / 2,
+                          y: rect.top,
+                          count: cell.count,
+                          day: cell.day,
+                        })
+                      }}
+                      onMouseLeave={() => setHover(null)}
+                      className={`size-[10px] rounded-[2px] transition-transform duration-100 hover:scale-125 ${LEVEL_CLASS[cell.level]}`}
+                    />
                   )
                 })}
               </div>
