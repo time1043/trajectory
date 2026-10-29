@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
 
-import { growthOverviewAtom } from '@/app/stores/growth'
 import { allRowsAtom } from '@/app/stores/data'
+import { growthOverviewAtom } from '@/app/stores/growth'
 import ActivityHeatmap from '@/components/activity-heatmap'
 import EmptyState from '@/components/empty-state'
 import HourDistribution from '@/components/hour-distribution'
@@ -19,8 +19,7 @@ function Dashboard() {
   const overview = useAtomValue(growthOverviewAtom)
   const rows = useAtomValue(allRowsAtom)
 
-  if (!overview.firstAt || !overview.lastAt)
-    return <EmptyState />
+  if (!overview.firstAt || !overview.lastAt) return <EmptyState />
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10 md:px-10">
@@ -28,17 +27,8 @@ function Dashboard() {
         <header>
           <h1 className="text-2xl font-medium text-hi">Overview</h1>
           <p className="mt-1.5 font-mono text-xs text-low">
-            {fmtDate(overview.firstAt)}
-            {' '}
-            →
-            {' '}
-            {fmtDate(overview.lastAt)}
-            {' '}
-            ·
-            {' '}
-            {fmtInt(overview.totalSessions)}
-            {' '}
-            conversations
+            {fmtDate(overview.firstAt)} → {fmtDate(overview.lastAt)} ·{' '}
+            {fmtInt(overview.totalSessions)} conversations
           </p>
         </header>
 
@@ -47,8 +37,14 @@ function Dashboard() {
             items={[
               { value: fmtInt(overview.totalSessions), label: 'conversations' },
               { value: fmtInt(overview.totalMessages), label: 'messages' },
-              { value: `${overview.currentStreak} / ${overview.longestStreak}`, label: 'streak · now / longest' },
-              { value: `${overview.activeDays} / ${overview.spanDays}`, label: 'active / span days' },
+              {
+                value: `${overview.currentStreak} / ${overview.longestStreak}`,
+                label: 'streak · now / longest',
+              },
+              {
+                value: `${overview.activeDays} / ${overview.spanDays}`,
+                label: 'active / span days',
+              },
             ]}
           />
         </div>
@@ -56,7 +52,11 @@ function Dashboard() {
         <section className="mt-12">
           <SectionTitle>Activity</SectionTitle>
           <div className="mt-5">
-            <ActivityHeatmap daily={overview.daily} firstAt={overview.firstAt} lastAt={overview.lastAt} />
+            <ActivityHeatmap
+              daily={overview.daily}
+              firstAt={overview.firstAt}
+              lastAt={overview.lastAt}
+            />
           </div>
         </section>
 
@@ -72,21 +72,17 @@ function Dashboard() {
           <section>
             <SectionTitle>Recent sessions</SectionTitle>
             <div className="mt-3">
-              {rows.length === 0
-                ? <EmptyState />
-                : rows.slice(0, 8).map(row => (
-                  <SessionItem key={row.id} row={row} search={{}} />
-                ))}
+              {rows.length === 0 ? (
+                <EmptyState />
+              ) : (
+                rows.slice(0, 8).map((row) => <SessionItem key={row.id} row={row} search={{}} />)
+              )}
               {rows.length > 8 && (
                 <Link
                   to="/sessions"
                   className="mt-3 inline-block font-mono text-xs text-low transition-colors duration-200 hover:text-hi"
                 >
-                  All
-                  {' '}
-                  {fmtInt(rows.length)}
-                  {' '}
-                  sessions →
+                  All {fmtInt(rows.length)} sessions →
                 </Link>
               )}
             </div>

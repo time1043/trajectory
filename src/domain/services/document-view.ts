@@ -2,6 +2,7 @@ import type { NodeId } from '../model/identity'
 import type { MessageNode } from '../model/message-node'
 import type { WebResult } from '../model/part'
 import type { Trajectory } from '../model/trajectory'
+
 import { variantInfoOf } from './turn-builder'
 
 /**
@@ -40,8 +41,7 @@ export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): Docu
 
   for (const nodeId of activePath) {
     const node = t.nodes.get(nodeId)
-    if (!node)
-      continue
+    if (!node) continue
 
     if (node.role === 'user') {
       turnStartAt = node.at
@@ -65,17 +65,17 @@ export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): Docu
       }
     }
 
-    if (node.role === 'user')
-      window = []
+    if (node.role === 'user') window = []
 
-    if (node.role === 'assistant' && node.parts.some(p => p.kind === 'text')) {
+    if (node.role === 'assistant' && node.parts.some((p) => p.kind === 'text')) {
       citationWindows.set(node.id, windowDirty ? [...window] : window)
       windowDirty = false
     }
 
-    const latencyMs = node.role === 'assistant' && turnStartAt !== null && node.at >= turnStartAt
-      ? node.at - turnStartAt
-      : null
+    const latencyMs =
+      node.role === 'assistant' && turnStartAt !== null && node.at >= turnStartAt
+        ? node.at - turnStartAt
+        : null
     // rewrite depth is a user-node property; assistant blocks reset it
     blocks.push({ node, variant, latencyMs, chainIndex: node.role === 'user' ? chainIndex : 0 })
   }
@@ -100,15 +100,13 @@ export function resolveCitation(
   window: readonly WebResult[] | undefined,
   references: readonly WebResult[],
 ): ResolvedCitation | null {
-  const refIndexOf = (r: WebResult) => references.findIndex(x => x.url === r.url)
+  const refIndexOf = (r: WebResult) => references.findIndex((x) => x.url === r.url)
 
   if (window && n >= 1 && n <= window.length) {
     const result = window[n - 1]
     const refIndex = refIndexOf(result)
-    if (refIndex >= 0)
-      return { result, refIndex: refIndex + 1 }
+    if (refIndex >= 0) return { result, refIndex: refIndex + 1 }
   }
-  if (n >= 1 && n <= references.length)
-    return { result: references[n - 1], refIndex: n }
+  if (n >= 1 && n <= references.length) return { result: references[n - 1], refIndex: n }
   return null
 }

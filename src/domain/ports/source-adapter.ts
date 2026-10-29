@@ -1,5 +1,5 @@
-import type { SourceFileEntry, SourceManifest, QuerySqlite } from './data-host'
 import type { ParsedSource } from '../model/trajectory'
+import type { SourceFileEntry, SourceManifest, QuerySqlite } from './data-host'
 
 export type { SourceFileEntry, SourceManifest }
 

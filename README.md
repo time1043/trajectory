@@ -87,11 +87,11 @@ text masking when the share feature lands.
 
 ## Interaction
 
-| Keys | Action |
-| --- | --- |
-| `⌘K` | command palette (title + first prompt search) |
-| `j` / `k` | move across the session list |
-| heatmap cell | filter sessions by that day's turn activity |
+| Keys         | Action                                        |
+| ------------ | --------------------------------------------- |
+| `⌘K`         | command palette (title + first prompt search) |
+| `j` / `k`    | move across the session list                  |
+| heatmap cell | filter sessions by that day's turn activity   |
 
 ## Development
 

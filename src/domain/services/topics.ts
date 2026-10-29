@@ -24,13 +24,10 @@ export function assignTopic(
     let hits = 0
     for (const pattern of def.patterns) {
       // an empty pattern matches everything and would hijack the topic
-      if (!pattern)
-        continue
-      if (haystack.toLowerCase().includes(pattern.toLowerCase()))
-        hits++
+      if (!pattern) continue
+      if (haystack.toLowerCase().includes(pattern.toLowerCase())) hits++
     }
-    if (hits > 0 && (!best || hits > best.hits))
-      best = { id: def.id, hits }
+    if (hits > 0 && (!best || hits > best.hits)) best = { id: def.id, hits }
   }
   return best?.id ?? OTHER_TOPIC
 }

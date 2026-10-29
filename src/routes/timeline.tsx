@@ -2,8 +2,9 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
 import { useMemo } from 'react'
 
-import { allRowsAtom } from '@/app/stores/data'
 import type { TrajectoryRow } from '@/app/derive'
+
+import { allRowsAtom } from '@/app/stores/data'
 import EmptyState from '@/components/empty-state'
 import { withSuspense } from '@/components/loading'
 import ProviderDot from '@/components/provider-dot'
@@ -29,8 +30,7 @@ function Timeline() {
     return [...byYear.entries()]
   }, [rows])
 
-  if (!rows.length)
-    return <EmptyState />
+  if (!rows.length) return <EmptyState />
 
   const first = rows[rows.length - 1]
   const last = rows[0]
@@ -41,14 +41,7 @@ function Timeline() {
         <header>
           <h1 className="text-2xl font-medium text-hi">Timeline</h1>
           <p className="mt-1.5 font-mono text-xs text-low">
-            {fmtInt(rows.length)}
-            {' '}
-            conversations ·
-            {' '}
-            {fmtDate(first.startedAt)}
-            {' '}
-            →
-            {' '}
+            {fmtInt(rows.length)} conversations · {fmtDate(first.startedAt)} →{' '}
             {fmtDate(last.startedAt)}
           </p>
         </header>
@@ -56,7 +49,7 @@ function Timeline() {
         <div className="relative mt-10 border-l border-line pl-6">
           {years.map(([year, yearRows]) => (
             <section key={year} className="pb-6">
-              <h2 className="-ml-6 pt-2 text-3xl font-medium text-hi slide-enter">{year}</h2>
+              <h2 className="slide-enter -ml-6 pt-2 text-3xl font-medium text-hi">{year}</h2>
               <MonthGroups rows={yearRows} />
             </section>
           ))}
@@ -81,24 +74,18 @@ function MonthGroups({ rows }: { rows: readonly TrajectoryRow[] }) {
 
   return (
     <div className="mt-4 space-y-6">
-      {months.map(monthRows => (
+      {months.map((monthRows) => (
         <div key={monthRows[0].startedAt}>
           {(() => {
             const d = new Date(monthRows[0].startedAt)
             return (
               <div className="font-mono text-xs text-faint select-none">
-                {MONTH_SHORT[d.getMonth()]}
-                {' '}
-                {d.getFullYear()}
-                {' '}
-                ·
-                {' '}
-                {monthRows.length}
+                {MONTH_SHORT[d.getMonth()]} {d.getFullYear()} · {monthRows.length}
               </div>
             )
           })()}
           <ul className="mt-2">
-            {monthRows.map(row => (
+            {monthRows.map((row) => (
               <li key={row.id} className="group flex items-baseline gap-3 py-1">
                 <span className="w-11 shrink-0 font-mono text-xs text-low tabular-nums">
                   {fmtDate(row.startedAt).slice(5)}

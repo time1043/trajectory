@@ -11,7 +11,13 @@ const PROVIDER_COLORS: Record<string, string> = {
   local: '#A3A3A3',
 }
 
-export default function ProviderDot({ sourceId, className = '' }: { sourceId: string, className?: string }) {
+export default function ProviderDot({
+  sourceId,
+  className = '',
+}: {
+  sourceId: string
+  className?: string
+}) {
   const color = PROVIDER_COLORS[sourceId.toLowerCase()] ?? '#A3A3A3'
   return (
     <span

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import type { SourceManifest } from '@/domain/ports/data-host'
-import { parseDeepseek } from './parse'
+
 import type { RawConversation } from './types'
+
+import { parseDeepseek } from './parse'
 
 const manifest: SourceManifest = {
   dirName: 'web/deepseek',
@@ -24,9 +26,12 @@ const conversation: RawConversation = {
   mapping: {
     root: { id: 'root', parent: null, children: ['1'], message: null },
     '1': {
-      id: '1', parent: 'root', children: ['2', '4'],
+      id: '1',
+      parent: 'root',
+      children: ['2', '4'],
       message: {
-        model: 'deepseek-chat', inserted_at: '2026-01-01T00:01:00+08:00',
+        model: 'deepseek-chat',
+        inserted_at: '2026-01-01T00:01:00+08:00',
         fragments: [
           { type: 'REQUEST', content: 'question' },
           { type: 'FILE', files: [{ file_id: 'f0', file_name: 'prompt.txt', file_size: 3 }] },
@@ -34,17 +39,32 @@ const conversation: RawConversation = {
       },
     },
     '2': {
-      id: '2', parent: '1', children: [],
-      message: { model: 'deepseek-chat', inserted_at: '2026-01-01T00:02:00+08:00', fragments: [{ type: 'RESPONSE', content: 'v1' }] },
+      id: '2',
+      parent: '1',
+      children: [],
+      message: {
+        model: 'deepseek-chat',
+        inserted_at: '2026-01-01T00:02:00+08:00',
+        fragments: [{ type: 'RESPONSE', content: 'v1' }],
+      },
     },
     '3': {
-      id: '3', parent: '1', children: [],
-      message: { model: 'deepseek-chat', inserted_at: '2026-01-01T00:02:30+08:00', fragments: [{ type: 'RESPONSE', content: 'v2' }] },
+      id: '3',
+      parent: '1',
+      children: [],
+      message: {
+        model: 'deepseek-chat',
+        inserted_at: '2026-01-01T00:02:30+08:00',
+        fragments: [{ type: 'RESPONSE', content: 'v2' }],
+      },
     },
     '4': {
-      id: '4', parent: '1', children: [],
+      id: '4',
+      parent: '1',
+      children: [],
       message: {
-        model: 'deepseek-reasoner', inserted_at: '2026-01-01T00:03:00+08:00',
+        model: 'deepseek-reasoner',
+        inserted_at: '2026-01-01T00:03:00+08:00',
         fragments: [
           { type: 'THINK', content: 'chain of thought' },
           { type: 'SEARCH', results: [{ url: 'https://x/1', title: 'X' }] },
@@ -61,14 +81,19 @@ const user = {
   user_id: 'u-12345678',
   email: 'someone@example.com',
   mobile: { mobile_number: '13800001111', area_code: '+86' },
-  oauth_profiles: [{ provider: 'WECHAT', profile_json: JSON.stringify({ provider: 'WECHAT', name: 'tester' }) }],
+  oauth_profiles: [
+    { provider: 'WECHAT', profile_json: JSON.stringify({ provider: 'WECHAT', name: 'tester' }) },
+  ],
 }
 
 function parse() {
-  return parseDeepseek(manifest, new Map([
-    ['web/deepseek/conversations.json', encode([conversation])],
-    ['web/deepseek/user.json', encode(user)],
-  ]))
+  return parseDeepseek(
+    manifest,
+    new Map([
+      ['web/deepseek/conversations.json', encode([conversation])],
+      ['web/deepseek/user.json', encode(user)],
+    ]),
+  )
 }
 
 describe('parseDeepseek', () => {
@@ -89,9 +114,18 @@ describe('parseDeepseek', () => {
 
   it('maps fragments to parts and counts unknown kinds', () => {
     const source = parse()
-    expect(source.trajectories[0]?.nodes.get('1')!.parts.map(p => p.kind)).toEqual(['text', 'attachment'])
+    expect(source.trajectories[0]?.nodes.get('1')!.parts.map((p) => p.kind)).toEqual([
+      'text',
+      'attachment',
+    ])
     const parts = source.trajectories[0]?.nodes.get('4')!.parts ?? []
-    expect(parts.map(p => p.kind)).toEqual(['reasoning', 'search', 'tool-call', 'unknown', 'text'])
+    expect(parts.map((p) => p.kind)).toEqual([
+      'reasoning',
+      'search',
+      'tool-call',
+      'unknown',
+      'text',
+    ])
     expect(source.diagnostics.unknownPartCounts).toEqual({ WEIRD: 1 })
   })
 
@@ -112,15 +146,19 @@ describe('parseDeepseek', () => {
   })
 
   it('tolerates a missing or broken user.json', () => {
-    const withoutUser = parseDeepseek(manifest, new Map([
-      ['web/deepseek/conversations.json', encode([conversation])],
-    ]))
+    const withoutUser = parseDeepseek(
+      manifest,
+      new Map([['web/deepseek/conversations.json', encode([conversation])]]),
+    )
     expect(withoutUser.profile).toBeNull()
 
-    const brokenUser = parseDeepseek(manifest, new Map([
-      ['web/deepseek/conversations.json', encode([conversation])],
-      ['web/deepseek/user.json', encode({ broken: true })],
-    ]))
+    const brokenUser = parseDeepseek(
+      manifest,
+      new Map([
+        ['web/deepseek/conversations.json', encode([conversation])],
+        ['web/deepseek/user.json', encode({ broken: true })],
+      ]),
+    )
     // a user record without the expected fields degrades instead of crashing the source
     expect(brokenUser.profile).toEqual({ displayName: 'unknown', identifiers: [] })
   })

@@ -3,6 +3,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { PaletteItem } from '@/app/stores/palette'
+
 import { paletteIndexAtom, paletteOpenAtom, scorePaletteItem } from '@/app/stores/palette'
 import EmptyState from '@/components/empty-state'
 import { IconSearch } from '@/components/icons'
@@ -36,20 +37,18 @@ export default function CommandPalette() {
 
   const results = useMemo(() => {
     const scored = paletteIndex
-      .map(item => ({ item, score: scorePaletteItem(item, query) }))
-      .filter(entry => entry.score > 0)
+      .map((item) => ({ item, score: scorePaletteItem(item, query) }))
+      .filter((entry) => entry.score > 0)
       .sort((a, b) => b.score - a.score || b.item.row.updatedAt - a.item.row.updatedAt)
-    return scored.slice(0, MAX_RESULTS).map(entry => entry.item)
+    return scored.slice(0, MAX_RESULTS).map((entry) => entry.item)
   }, [paletteIndex, query])
 
   // DOM focus is external-system sync, so an effect is fine here
   useEffect(() => {
-    if (open)
-      requestAnimationFrame(() => inputRef.current?.focus())
+    if (open) requestAnimationFrame(() => inputRef.current?.focus())
   }, [open])
 
-  if (!open)
-    return null
+  if (!open) return null
 
   const openItem = (item: PaletteItem) => {
     setOpen(false)
@@ -63,27 +62,24 @@ export default function CommandPalette() {
     >
       <div
         className="w-[560px] max-w-[90vw] overflow-hidden rounded-md border border-line bg-panel shadow-lg"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           <IconSearch className="size-4 shrink-0 text-low" />
           <input
             ref={inputRef}
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setSelected(s => Math.min(s + 1, results.length - 1))
-              }
-              else if (e.key === 'ArrowUp') {
+                setSelected((s) => Math.min(s + 1, results.length - 1))
+              } else if (e.key === 'ArrowUp') {
                 e.preventDefault()
-                setSelected(s => Math.max(s - 1, 0))
-              }
-              else if (e.key === 'Enter' && results[selected]) {
+                setSelected((s) => Math.max(s - 1, 0))
+              } else if (e.key === 'Enter' && results[selected]) {
                 openItem(results[selected])
-              }
-              else if (e.key === 'Escape') {
+              } else if (e.key === 'Escape') {
                 setOpen(false)
               }
             }}
@@ -94,26 +90,30 @@ export default function CommandPalette() {
         </div>
 
         <div className="max-h-[50vh] overflow-y-auto py-1">
-          {results.length === 0
-            ? (
-                <EmptyState>{query ? '{ 0 matches }' : '{ nothing here yet }'}</EmptyState>
-              )
-            : results.map((item, i) => (
-                <button
-                  key={item.row.id}
-                  type="button"
-                  onClick={() => openItem(item)}
-                  onMouseEnter={() => setSelected(i)}
-                  className={`flex w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-150 ${
-                    i === selected ? 'bg-elevated' : ''}`}
-                >
-                  <ProviderDot sourceId={item.row.sourceId} />
-                  <span className="min-w-0 flex-1 truncate text-sm text-hi">{item.row.title}</span>
-                  <span className="shrink-0 font-mono text-xs text-low">
-                    {new Date(item.row.updatedAt).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}
-                  </span>
-                </button>
-              ))}
+          {results.length === 0 ? (
+            <EmptyState>{query ? '{ 0 matches }' : '{ nothing here yet }'}</EmptyState>
+          ) : (
+            results.map((item, i) => (
+              <button
+                key={item.row.id}
+                type="button"
+                onClick={() => openItem(item)}
+                onMouseEnter={() => setSelected(i)}
+                className={`flex w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-150 ${
+                  i === selected ? 'bg-elevated' : ''
+                }`}
+              >
+                <ProviderDot sourceId={item.row.sourceId} />
+                <span className="min-w-0 flex-1 truncate text-sm text-hi">{item.row.title}</span>
+                <span className="shrink-0 font-mono text-xs text-low">
+                  {new Date(item.row.updatedAt).toLocaleDateString('en-US', {
+                    month: '2-digit',
+                    day: '2-digit',
+                  })}
+                </span>
+              </button>
+            ))
+          )}
         </div>
       </div>
     </div>

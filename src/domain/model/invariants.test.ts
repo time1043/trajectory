@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Trajectory } from './trajectory'
-import { checkInvariants } from './invariants'
-import { makeTrajectory, text, at, reasoning } from '../../test/fixtures'
 
-function spec(id: string, role: 'user' | 'assistant', minutes: number, parent: string | null, parts?: Parameters<typeof text>[0] | undefined) {
+import { makeTrajectory, text, at, reasoning } from '../../test/fixtures'
+import { checkInvariants } from './invariants'
+
+function spec(
+  id: string,
+  role: 'user' | 'assistant',
+  minutes: number,
+  parent: string | null,
+  parts?: Parameters<typeof text>[0] | undefined,
+) {
   return { id, role, at: at(minutes), parent, parts: parts ? [text(parts)] : undefined }
 }
 
@@ -82,7 +89,9 @@ describe('checkInvariants', () => {
         parts: [text('hi'), reasoning('sneaky chain of thought')],
       }),
     } as Trajectory
-    expect(checkInvariants(polluted).join('\n')).toContain('user node u1 carries assistant-side parts')
+    expect(checkInvariants(polluted).join('\n')).toContain(
+      'user node u1 carries assistant-side parts',
+    )
   })
 
   it('flags non-ascending childIds (I4)', () => {
@@ -101,6 +110,8 @@ describe('checkInvariants', () => {
       spec('a1', 'assistant', 1, 'u1', 'hello'),
     ])
     const broken = { ...t, activePath: ['ghost', 'a1'] } as Trajectory
-    expect(checkInvariants(broken).join('\n')).toContain('activePath does not start at a top-level node')
+    expect(checkInvariants(broken).join('\n')).toContain(
+      'activePath does not start at a top-level node',
+    )
   })
 })

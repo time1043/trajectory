@@ -1,6 +1,7 @@
+import type { ToolCallPayload } from '@/domain/model/part'
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { SourceAdapter } from '@/domain/ports/source-adapter'
-import type { ToolCallPayload } from '@/domain/model/part'
+
 import {
   fetchTexts,
   parseJsonl,
@@ -34,11 +35,13 @@ export const codexAdapter: SourceAdapter = {
   id: 'codex',
   label: 'Codex',
   detect(manifest: SourceManifest): boolean {
-    return manifest.files.some(f => SESSION_FILE.test(`/${f.path}`))
+    return manifest.files.some((f) => SESSION_FILE.test(`/${f.path}`))
   },
   async parse({ manifest, fetchFile }) {
     const build: SourceBuild = { trajectories: [], unknownPartCounts: {} }
-    const sessionFiles = manifest.files.filter(f => SESSION_FILE.test(`/${f.path}`)).map(f => f.path)
+    const sessionFiles = manifest.files
+      .filter((f) => SESSION_FILE.test(`/${f.path}`))
+      .map((f) => f.path)
     const texts = await fetchTexts(sessionFiles, fetchFile)
 
     for (const [filePath, text] of texts) {
@@ -54,15 +57,20 @@ export const codexAdapter: SourceAdapter = {
 
       const ensureAssistant = (at: number): NodeDraft => {
         if (!lastAssistant) {
-          lastAssistant = { id: `${rawId}:a${drafts.length}`, at, role: 'assistant', model, parts: [] }
+          lastAssistant = {
+            id: `${rawId}:a${drafts.length}`,
+            at,
+            role: 'assistant',
+            model,
+            parts: [],
+          }
           drafts.push(lastAssistant)
         }
         return lastAssistant
       }
 
       for (const line of lines) {
-        if (!line.timestamp || !line.type)
-          continue
+        if (!line.timestamp || !line.type) continue
         const at = Date.parse(line.timestamp)
         if (!Number.isNaN(at)) {
           startedAt = Math.min(startedAt, at)
@@ -75,12 +83,10 @@ export const codexAdapter: SourceAdapter = {
         }
         if (line.type === 'turn_context') {
           const m = line.payload?.model
-          if (typeof m === 'string')
-            model = m
+          if (typeof m === 'string') model = m
           continue
         }
-        if (line.type !== 'response_item')
-          continue
+        if (line.type !== 'response_item') continue
 
         const payload = line.payload ?? {}
         const kind = payload.type
@@ -93,18 +99,29 @@ export const codexAdapter: SourceAdapter = {
             // environment wrapper still starts a new user turn
             lastAssistant = null
             // environment/instruction wrappers and project instruction dumps are injections, not the user's voice
-            const real = text.filter(t => !/^<(environment_context|user_instructions|permissions)/.test(t.trim()) && !/^# AGENTS\.md/.test(t.trim()))
-            if (!real.length)
-              continue
+            const real = text.filter(
+              (t) =>
+                !/^<(environment_context|user_instructions|permissions)/.test(t.trim()) &&
+                !/^# AGENTS\.md/.test(t.trim()),
+            )
+            if (!real.length) continue
             const joined = real.join('\n\n')
-            if (!firstPrompt)
-              firstPrompt = joined
-            drafts.push({ id: `${rawId}:u${drafts.length}`, at, role: 'user', parts: [truncatedText(joined)] })
-          }
-          else if (role === 'assistant') {
-            if (!text.join('').trim())
-              continue
-            const draft: NodeDraft = { id: `${rawId}:a${drafts.length}`, at, role: 'assistant', model, parts: text.map(t => truncatedText(t)) }
+            if (!firstPrompt) firstPrompt = joined
+            drafts.push({
+              id: `${rawId}:u${drafts.length}`,
+              at,
+              role: 'user',
+              parts: [truncatedText(joined)],
+            })
+          } else if (role === 'assistant') {
+            if (!text.join('').trim()) continue
+            const draft: NodeDraft = {
+              id: `${rawId}:a${drafts.length}`,
+              at,
+              role: 'assistant',
+              model,
+              parts: text.map((t) => truncatedText(t)),
+            }
             drafts.push(draft)
             lastAssistant = draft
           }
@@ -114,8 +131,7 @@ export const codexAdapter: SourceAdapter = {
 
         if (kind === 'reasoning') {
           const summary = contentText(payload.summary).join('\n\n')
-          if (!summary)
-            continue // encrypted-only reasoning has no readable content
+          if (!summary) continue // encrypted-only reasoning has no readable content
           const draft = ensureAssistant(at)
           draft.parts.push(truncatedReasoning(summary))
           continue
@@ -125,7 +141,9 @@ export const codexAdapter: SourceAdapter = {
           const tool = String(payload.name ?? 'tool')
           const input = parseMaybeJson(payload.arguments ?? payload.input)
           const callPayload: ToolCallPayload = {
-            title: toolTitleFromInput(input) ?? (typeof input === 'string' ? truncateLine(input) : undefined),
+            title:
+              toolTitleFromInput(input) ??
+              (typeof input === 'string' ? truncateLine(input) : undefined),
             input,
           }
           pendingOutputs.set(String(payload.call_id ?? ''), callPayload)
@@ -137,7 +155,10 @@ export const codexAdapter: SourceAdapter = {
         if (kind === 'function_call_output' || kind === 'custom_tool_call_output') {
           const pending = pendingOutputs.get(String(payload.call_id ?? ''))
           if (pending) {
-            const raw = typeof payload.output === 'string' ? payload.output : JSON.stringify(payload.output ?? '')
+            const raw =
+              typeof payload.output === 'string'
+                ? payload.output
+                : JSON.stringify(payload.output ?? '')
             Object.assign(pending, truncatedOutput(raw))
           }
           continue
@@ -154,16 +175,28 @@ export const codexAdapter: SourceAdapter = {
         if (kind === 'compacted') {
           const message = typeof payload.message === 'string' ? payload.message : ''
           if (message)
-            drafts.push({ id: `${rawId}:c${drafts.length}`, at, role: 'assistant', model, parts: [truncatedText(`[compacted]\n${message}`)] })
+            drafts.push({
+              id: `${rawId}:c${drafts.length}`,
+              at,
+              role: 'assistant',
+              model,
+              parts: [truncatedText(`[compacted]\n${message}`)],
+            })
           continue
         }
 
         build.unknownPartCounts[String(kind)] = (build.unknownPartCounts[String(kind)] ?? 0) + 1
       }
 
-      const trajectory = finishSession({ sourceId: 'codex', rawId, drafts, startedAt, updatedAt, firstPrompt })
-      if (trajectory)
-        build.trajectories.push(trajectory)
+      const trajectory = finishSession({
+        sourceId: 'codex',
+        rawId,
+        drafts,
+        startedAt,
+        updatedAt,
+        firstPrompt,
+      })
+      if (trajectory) build.trajectories.push(trajectory)
     }
 
     return {
@@ -178,26 +211,22 @@ export const codexAdapter: SourceAdapter = {
 }
 
 function contentText(content: unknown): string[] {
-  if (!Array.isArray(content))
-    return []
+  if (!Array.isArray(content)) return []
   const out: string[] = []
   for (const item of content) {
     if (item && typeof item === 'object') {
       const record = item as Record<string, unknown>
-      if (typeof record.text === 'string' && record.text)
-        out.push(record.text)
+      if (typeof record.text === 'string' && record.text) out.push(record.text)
     }
   }
   return out
 }
 
 function parseMaybeJson(value: unknown): unknown {
-  if (typeof value !== 'string')
-    return value
+  if (typeof value !== 'string') return value
   try {
     return JSON.parse(value)
-  }
-  catch {
+  } catch {
     return value
   }
 }

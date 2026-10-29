@@ -1,11 +1,17 @@
-import fs from 'node:fs'
-import fsp from 'node:fs/promises'
-import path from 'node:path'
-import { createRequire } from 'node:module'
 import type { Plugin, ViteDevServer } from 'vite'
 
+import fs from 'node:fs'
+import fsp from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import path from 'node:path'
+
+import type {
+  SourceFileEntry,
+  SourceManifest,
+  SqliteQueryResult,
+} from '../src/domain/ports/data-host.ts'
+
 import { DATA_API_HMR_EVENT } from '../src/domain/ports/data-host.ts'
-import type { SourceFileEntry, SourceManifest, SqliteQueryResult } from '../src/domain/ports/data-host.ts'
 
 const MANIFEST_TTL_MS = 1000
 const MAX_SCAN_FILES = 20000
@@ -16,17 +22,18 @@ interface SqliteDatabase {
   prepare(sql: string): { all(...params: unknown[]): unknown[] }
   close(): void
 }
-type SqliteCtor = new (path: string, options?: { readonly?: boolean, fileMustExist?: boolean }) => SqliteDatabase
+type SqliteCtor = new (
+  path: string,
+  options?: { readonly?: boolean; fileMustExist?: boolean },
+) => SqliteDatabase
 
 // lazily resolved so the plugin still loads without better-sqlite3 installed
 let sqliteCtor: SqliteCtor | null | undefined
 function getSqlite(): SqliteCtor | null {
-  if (sqliteCtor !== undefined)
-    return sqliteCtor
+  if (sqliteCtor !== undefined) return sqliteCtor
   try {
     sqliteCtor = createRequire(import.meta.url)('better-sqlite3') as unknown as SqliteCtor
-  }
-  catch {
+  } catch {
     sqliteCtor = null
   }
   return sqliteCtor
@@ -45,19 +52,17 @@ function getSqlite(): SqliteCtor | null {
 export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
   const dataDir = opts.dataDir ?? 'data'
   let realRoot = ''
-  let manifestCache: { at: number, value: SourceManifest[] } | null = null
+  let manifestCache: { at: number; value: SourceManifest[] } | null = null
   const sqliteHandles = new Map<string, SqliteDatabase>()
 
   async function scan(): Promise<SourceManifest[]> {
-    if (manifestCache && Date.now() - manifestCache.at < MANIFEST_TTL_MS)
-      return manifestCache.value
+    if (manifestCache && Date.now() - manifestCache.at < MANIFEST_TTL_MS) return manifestCache.value
 
     const manifests: SourceManifest[] = []
     let groups: string[] = []
     try {
       groups = await fsp.readdir(realRoot)
-    }
-    catch {
+    } catch {
       return manifests
     }
 
@@ -66,18 +71,15 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       let groupStat: fs.Stats
       try {
         groupStat = await fsp.stat(groupPath)
-      }
-      catch {
+      } catch {
         continue
       }
-      if (!groupStat.isDirectory())
-        continue
+      if (!groupStat.isDirectory()) continue
 
       let sources: string[] = []
       try {
         sources = await fsp.readdir(groupPath)
-      }
-      catch {
+      } catch {
         continue
       }
       for (const source of sources.sort()) {
@@ -85,22 +87,18 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         let sourceStat: fs.Stats
         try {
           sourceStat = await fsp.stat(sourcePath)
-        }
-        catch {
+        } catch {
           continue
         }
-        if (!sourceStat.isDirectory())
-          continue
+        if (!sourceStat.isDirectory()) continue
 
         const files: SourceFileEntry[] = []
         const walk = async (dir: string, prefix: string): Promise<void> => {
-          if (files.length >= MAX_SCAN_FILES)
-            return
+          if (files.length >= MAX_SCAN_FILES) return
           let entries: fs.Dirent[]
           try {
             entries = await fsp.readdir(dir, { withFileTypes: true })
-          }
-          catch {
+          } catch {
             return
           }
           for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
@@ -108,16 +106,17 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
             const full = path.join(dir, entry.name)
             if (entry.isDirectory()) {
               await walk(full, `${rel}/`)
-            }
-            else if (entry.isFile()) {
+            } else if (entry.isFile()) {
               // transient sqlite sidecars and OS noise are not data
-              if (entry.name.startsWith('.') || /-wal$|-shm$/.test(entry.name))
-                continue
+              if (entry.name.startsWith('.') || /-wal$|-shm$/.test(entry.name)) continue
               const fileStat = await fsp.stat(full)
-              files.push({ path: `${group}/${source}/${rel}`, size: fileStat.size, mtimeMs: fileStat.mtimeMs })
+              files.push({
+                path: `${group}/${source}/${rel}`,
+                size: fileStat.size,
+                mtimeMs: fileStat.mtimeMs,
+              })
             }
-            if (files.length >= MAX_SCAN_FILES)
-              return
+            if (files.length >= MAX_SCAN_FILES) return
           }
         }
         await walk(sourcePath, '')
@@ -131,11 +130,9 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
 
   function sqliteFor(requested: string): SqliteDatabase {
     const cached = sqliteHandles.get(requested)
-    if (cached)
-      return cached
+    if (cached) return cached
     const Database = getSqlite()
-    if (!Database)
-      throw new Error('better-sqlite3 is not installed')
+    if (!Database) throw new Error('better-sqlite3 is not installed')
     const resolved = path.resolve(realRoot, requested)
     const db = new Database(resolved, { readonly: true, fileMustExist: true })
     sqliteHandles.set(requested, db)
@@ -152,8 +149,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         // data/ may be a symlink outside the repo — resolve once
         realRoot = fs.realpathSync(root)
         config.server.fs.allow.push(realRoot)
-      }
-      catch {
+      } catch {
         realRoot = root
         config.logger.warn(`[trajectory-data] data dir not found: ${root}`)
       }
@@ -165,8 +161,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         server.watcher.add(realRoot)
         let timer: ReturnType<typeof setTimeout> | null = null
         const notify = (filePath: string) => {
-          if (!filePath.startsWith(realRoot))
-            return
+          if (!filePath.startsWith(realRoot)) return
           manifestCache = null
           for (const [key, db] of sqliteHandles) {
             if (filePath.startsWith(path.resolve(realRoot, key))) {
@@ -174,8 +169,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
               sqliteHandles.delete(key)
             }
           }
-          if (timer)
-            clearTimeout(timer)
+          if (timer) clearTimeout(timer)
           timer = setTimeout(() => {
             server.ws.send({
               type: 'custom',
@@ -200,8 +194,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       // ---- endpoints ----
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? '/', 'http://localhost')
-        if (!url.pathname.startsWith('/@api/'))
-          return next()
+        if (!url.pathname.startsWith('/@api/')) return next()
 
         if (url.pathname === '/@api/sources') {
           const manifests = await scan()
@@ -218,7 +211,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
             return
           }
           const manifests = await scan()
-          const known = manifests.some(m => m.files.some(f => f.path === requested))
+          const known = manifests.some((m) => m.files.some((f) => f.path === requested))
           if (!known) {
             res.statusCode = 404
             res.end('path not in manifest')
@@ -235,8 +228,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
             res.setHeader('Content-Type', 'application/octet-stream')
             res.setHeader('Content-Length', body.byteLength)
             res.end(body)
-          }
-          catch (error) {
+          } catch (error) {
             res.statusCode = 500
             res.end(String(error))
           }
@@ -245,14 +237,22 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
 
         if (url.pathname === '/@api/sqlite' && req.method === 'POST') {
           try {
-            const body = JSON.parse(await readBody(req)) as { path?: string, sql?: string, params?: unknown[] }
+            const body = JSON.parse(await readBody(req)) as {
+              path?: string
+              sql?: string
+              params?: unknown[]
+            }
             if (!body.path || !body.sql) {
               res.statusCode = 400
               res.end('missing path or sql')
               return
             }
             const manifests = await scan()
-            const known = manifests.some(m => m.files.some(f => f.path === body.path && SQLITE_SUFFIXES.has(path.extname(f.path))))
+            const known = manifests.some((m) =>
+              m.files.some(
+                (f) => f.path === body.path && SQLITE_SUFFIXES.has(path.extname(f.path)),
+              ),
+            )
             if (!known) {
               res.statusCode = 404
               res.end('database not in manifest')
@@ -269,11 +269,13 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
               return
             }
             const db = sqliteFor(body.path)
-            const rows = db.prepare(body.sql).all(...(body.params ?? [])) as Record<string, unknown>[]
+            const rows = db.prepare(body.sql).all(...(body.params ?? [])) as Record<
+              string,
+              unknown
+            >[]
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ rows } satisfies SqliteQueryResult))
-          }
-          catch (error) {
+          } catch (error) {
             res.statusCode = 500
             res.end(JSON.stringify({ error: String(error) }))
           }
@@ -286,9 +288,8 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
 
       // startup log
       void scan().then((manifests) => {
-        if (!manifests.length)
-          return
-        const list = manifests.map(m => `  · ${m.dirName} (${m.files.length} files)`).join('\n')
+        if (!manifests.length) return
+        const list = manifests.map((m) => `  · ${m.dirName} (${m.files.length} files)`).join('\n')
         server.config.logger.info(`[trajectory-data] sources:\n${list}`, { clear: false })
       })
     },

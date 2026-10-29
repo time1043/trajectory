@@ -17,8 +17,7 @@ export function fmtTime(at: number): string {
 /** 38s / 2m05s / 1.2h — rounded seconds, no 60s overflow inside a minute */
 export function fmtLatency(ms: number): string {
   const totalSeconds = Math.round(ms / 1000)
-  if (totalSeconds < 60)
-    return `${totalSeconds}s`
+  if (totalSeconds < 60) return `${totalSeconds}s`
   if (totalSeconds < 3600) {
     const minutes = Math.floor(totalSeconds / 60)
     const seconds = totalSeconds % 60
@@ -29,19 +28,29 @@ export function fmtLatency(ms: number): string {
 
 /** 823 -> 823; 12431 -> 12.4k; 1243000 -> 1.2m (rolls over instead of 1000.0k) */
 export function fmtChars(n: number): string {
-  if (n < 999_950)
-    return n < 1000 ? String(n) : `${(n / 1000).toFixed(1)}k`
+  if (n < 999_950) return n < 1000 ? String(n) : `${(n / 1000).toFixed(1)}k`
   return `${(n / 1_000_000).toFixed(1)}m`
 }
 
 export function fmtBytes(n: number): string {
-  if (n < 1024)
-    return `${n} B`
-  if (n < 1024 * 1023.95)
-    return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1023.95) return `${(n / 1024).toFixed(1)} KB`
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 export { MONTH_SHORT }

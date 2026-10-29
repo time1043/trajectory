@@ -1,19 +1,25 @@
 import { useState } from 'react'
 
+import type { AttachmentRef, Part, ToolCallPayload, WebResult } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
 import type { DocBlock } from '@/domain/services/document-view'
-import type { AttachmentRef, Part, ToolCallPayload, WebResult } from '@/domain/model/part'
 import type { VariantRef } from '@/domain/services/turn-builder'
-import { orderedSiblingsOf } from '@/domain/services/turn-builder'
+
+import { useVariantSwitcher } from '@/app/stores/detail'
 import { IconChevronLeft, IconChevronRight } from '@/components/icons'
 import MarkdownRenderer from '@/components/markdown'
-import { useVariantSwitcher } from '@/app/stores/detail'
+import { orderedSiblingsOf } from '@/domain/services/turn-builder'
 import { fmtBytes, fmtChars, fmtLatency, fmtTime } from '@/lib/format'
 
 /** Rendering blocks for the session reading view; the route file owns orchestration only. */
 // ============ message blocks ============
 
-export function MessageBlock({ trajectory, block, references, citationWindow }: {
+export function MessageBlock({
+  trajectory,
+  block,
+  references,
+  citationWindow,
+}: {
   trajectory: Trajectory
   block: DocBlock
   references: readonly WebResult[]
@@ -33,26 +39,28 @@ export function MessageBlock({ trajectory, block, references, citationWindow }: 
   )
 }
 
-function BlockLabel({ role, node }: { role: 'YOU' | 'ASSISTANT', node: DocBlock['node'] }) {
+function BlockLabel({ role, node }: { role: 'YOU' | 'ASSISTANT'; node: DocBlock['node'] }) {
   return (
     <div className="font-mono text-[11px] tracking-wider text-low uppercase select-none">
-      {role}
-      {' '}
-      ·
-      {' '}
-      {fmtTime(node.at)}
+      {role} · {fmtTime(node.at)}
     </div>
   )
 }
 
-function UserBlock({ trajectory, block, onSwitch }: {
+function UserBlock({
+  trajectory,
+  block,
+  onSwitch,
+}: {
   trajectory: Trajectory
   block: DocBlock
   onSwitch: (variant: VariantRef) => void
 }) {
   const { node, chainIndex, variant } = block
   const texts = node.parts.filter((p): p is Extract<Part, { kind: 'text' }> => p.kind === 'text')
-  const attachments = node.parts.filter((p): p is Extract<Part, { kind: 'attachment' }> => p.kind === 'attachment')
+  const attachments = node.parts.filter(
+    (p): p is Extract<Part, { kind: 'attachment' }> => p.kind === 'attachment',
+  )
   const rewritten = chainIndex > 0
 
   return (
@@ -77,7 +85,8 @@ function UserBlock({ trajectory, block, onSwitch }: {
         <div
           key={i}
           className={`mt-2 border-l-2 pl-4 whitespace-pre-wrap ${
-            rewritten ? 'border-line text-low text-sm' : 'border-line-strong text-hi/85'}`}
+            rewritten ? 'border-line text-sm text-low' : 'border-line-strong text-hi/85'
+          }`}
         >
           {part.text}
         </div>
@@ -89,7 +98,13 @@ function UserBlock({ trajectory, block, onSwitch }: {
   )
 }
 
-function AssistantBlock({ trajectory, block, references, citationWindow, onSwitch }: {
+function AssistantBlock({
+  trajectory,
+  block,
+  references,
+  citationWindow,
+  onSwitch,
+}: {
   trajectory: Trajectory
   block: DocBlock
   references: readonly WebResult[]
@@ -128,15 +143,19 @@ function AssistantBlock({ trajectory, block, references, citationWindow, onSwitc
   )
 }
 
-function VariantPager({ trajectory, variant, nodeId, onSwitch }: {
+function VariantPager({
+  trajectory,
+  variant,
+  nodeId,
+  onSwitch,
+}: {
   trajectory: Trajectory
   variant: NonNullable<DocBlock['variant']>
   nodeId: string
   onSwitch: (variant: VariantRef) => void
 }) {
   const ordered = orderedSiblingsOf(trajectory, nodeId)
-  if (ordered.length <= 1)
-    return null
+  if (ordered.length <= 1) return null
   const idx = variant.index - 1
   const prev = ordered[(idx - 1 + ordered.length) % ordered.length]
   const next = ordered[(idx + 1) % ordered.length]
@@ -152,9 +171,7 @@ function VariantPager({ trajectory, variant, nodeId, onSwitch }: {
         <IconChevronLeft className="size-3" />
       </button>
       <span className="tabular-nums">
-        {variant.index}
-        /
-        {variant.count}
+        {variant.index}/{variant.count}
       </span>
       <button
         type="button"
@@ -170,7 +187,11 @@ function VariantPager({ trajectory, variant, nodeId, onSwitch }: {
 
 // ============ part rendering ============
 
-function PartRenderer({ part, references, citationWindow }: {
+function PartRenderer({
+  part,
+  references,
+  citationWindow,
+}: {
   part: Part
   references: readonly WebResult[]
   citationWindow: readonly WebResult[] | undefined
@@ -197,10 +218,14 @@ function ThinkBlock({ text }: { text: string }) {
     <div className="mt-3">
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1 font-mono text-xs text-low transition-colors duration-150 hover:text-hi"
       >
-        <span className={`inline-block text-[10px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
+        <span
+          className={`inline-block text-[10px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+        >
+          ▶
+        </span>
         Thinking
         <span className="text-faint">· {fmtChars(text.length)} chars</span>
       </button>
@@ -214,7 +239,7 @@ function ThinkBlock({ text }: { text: string }) {
 }
 
 /** Collapsed one-liner per tool call; expands to the (truncated) output */
-function ToolBlock({ tool, payload }: { tool: string, payload?: unknown }) {
+function ToolBlock({ tool, payload }: { tool: string; payload?: unknown }) {
   const [open, setOpen] = useState(false)
   const p = (payload ?? {}) as ToolCallPayload
   const label = p.title ? `${tool} · ${p.title}` : tool
@@ -223,16 +248,22 @@ function ToolBlock({ tool, payload }: { tool: string, payload?: unknown }) {
     <div className="mt-3">
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1 font-mono text-xs transition-colors duration-150 ${p.error ? 'text-error-strong' : 'text-low hover:text-hi'}`}
       >
-        <span className={`inline-block text-[10px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
+        <span
+          className={`inline-block text-[10px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+        >
+          ▶
+        </span>
         <span className="truncate">{label}</span>
         {p.error && <span className="text-faint">· failed</span>}
       </button>
       {open && p.output && (
         <div className="mt-2 border-l border-line pl-4">
-          <pre className="max-h-96 max-w-full overflow-auto font-mono text-xs leading-5 whitespace-pre-wrap text-mid">{p.output}</pre>
+          <pre className="max-h-96 max-w-full overflow-auto font-mono text-xs leading-5 whitespace-pre-wrap text-mid">
+            {p.output}
+          </pre>
           {p.truncated && p.originalChars !== undefined && (
             <div className="mt-1 font-mono text-[10px] text-faint select-none">
               truncated · original {fmtChars(p.originalChars)} chars
@@ -246,16 +277,19 @@ function ToolBlock({ tool, payload }: { tool: string, payload?: unknown }) {
 
 function SearchBlock({ results }: { results: readonly WebResult[] }) {
   const [open, setOpen] = useState(false)
-  if (results.length === 0)
-    return null
+  if (results.length === 0) return null
   return (
     <div className="mt-3">
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1 font-mono text-xs text-low transition-colors duration-150 hover:text-hi"
       >
-        <span className={`inline-block text-[10px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>▶</span>
+        <span
+          className={`inline-block text-[10px] transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+        >
+          ▶
+        </span>
         ⌕ web search
         <span className="text-faint">· {results.length} results</span>
       </button>
@@ -263,7 +297,12 @@ function SearchBlock({ results }: { results: readonly WebResult[] }) {
         <ul className="mt-2 space-y-1.5 border-l border-line pl-4">
           {results.map((r, i) => (
             <li key={`${r.url}-${i}`} className="truncate font-mono text-xs">
-              <a href={r.url} target="_blank" rel="noreferrer" className="text-mid transition-colors duration-150 hover:text-accent">
+              <a
+                href={r.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-mid transition-colors duration-150 hover:text-accent"
+              >
                 {r.title || r.url}
               </a>
             </li>
@@ -275,11 +314,10 @@ function SearchBlock({ results }: { results: readonly WebResult[] }) {
 }
 
 function FileChips({ files }: { files: readonly AttachmentRef[] }) {
-  if (files.length === 0)
-    return null
+  if (files.length === 0) return null
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
-      {files.map(file => (
+      {files.map((file) => (
         <span
           key={file.fileId}
           className="max-w-full truncate rounded-sm border border-line px-1.5 py-0.5 font-mono text-xs text-low"
@@ -294,11 +332,7 @@ function FileChips({ files }: { files: readonly AttachmentRef[] }) {
 }
 
 function ToolChip({ label }: { label: string }) {
-  return (
-    <div className="mt-3 font-mono text-xs text-faint select-none">
-      {label}
-    </div>
-  )
+  return <div className="mt-3 font-mono text-xs text-faint select-none">{label}</div>
 }
 
 // ============ references (single session-level footnote) ============
@@ -333,8 +367,7 @@ export function ReferenceList({ references }: { references: readonly WebResult[]
 function hostname(url: string): string {
   try {
     return new URL(url).hostname
-  }
-  catch {
+  } catch {
     return url
   }
 }

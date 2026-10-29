@@ -3,17 +3,29 @@
 export interface RawUser {
   user_id: string
   email: string
-  mobile: { mobile_number: string, area_code: string }
-  oauth_profiles: { provider: string, profile_json: string }[]
+  mobile: { mobile_number: string; area_code: string }
+  oauth_profiles: { provider: string; profile_json: string }[]
 }
 
 export type RawFragmentType =
-  | 'REQUEST' | 'RESPONSE' | 'THINK' | 'FILE'
-  | 'SEARCH' | 'TOOL_SEARCH' | 'TOOL_OPEN'
+  | 'REQUEST'
+  | 'RESPONSE'
+  | 'THINK'
+  | 'FILE'
+  | 'SEARCH'
+  | 'TOOL_SEARCH'
+  | 'TOOL_OPEN'
   | (string & {})
 
-export interface RawWebResult { url: string, title: string }
-export interface RawFileRef { file_id: string, file_name: string, file_size: number }
+export interface RawWebResult {
+  url: string
+  title: string
+}
+export interface RawFileRef {
+  file_id: string
+  file_name: string
+  file_size: number
+}
 
 export interface RawFragment {
   type: RawFragmentType

@@ -1,12 +1,13 @@
 import { useContext } from 'react'
 
 import type { ResolvedCitation } from '@/domain/services/document-view'
+
 import { resolveCitation } from '@/domain/services/document-view'
+
 import { CitationContext } from './remark-citations'
 
-type MdSupProps = React.ClassAttributes<HTMLElement>
-  & React.HTMLAttributes<HTMLElement>
-  & { node?: unknown }
+type MdSupProps = React.ClassAttributes<HTMLElement> &
+  React.HTMLAttributes<HTMLElement> & { node?: unknown }
 
 /** Citation rendering: window resolution -> stable registry number; degraded plain marker when unresolvable */
 export default function CitationSup(props: MdSupProps) {
@@ -17,8 +18,7 @@ export default function CitationSup(props: MdSupProps) {
     ? resolveCitation(n, context.window, context.references)
     : null
 
-  if (!resolved)
-    return <sup className="citation text-low">[{raw}]</sup>
+  if (!resolved) return <sup className="citation text-low">[{raw}]</sup>
 
   return (
     <sup className="citation">
@@ -27,7 +27,9 @@ export default function CitationSup(props: MdSupProps) {
         title={resolved.result.title || resolved.result.url}
         onClick={(e) => {
           e.preventDefault()
-          document.getElementById(`ref-${resolved.refIndex}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          document
+            .getElementById(`ref-${resolved.refIndex}`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }}
       >
         {resolved.refIndex}

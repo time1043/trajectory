@@ -22,7 +22,7 @@ export default function HourDistribution({ histogram }: { histogram: readonly nu
         ))}
       </div>
       <div className="relative mt-2 h-4">
-        {labels.map(hour => (
+        {labels.map((hour) => (
           <span
             key={hour}
             className="absolute font-mono text-[10px] text-faint"

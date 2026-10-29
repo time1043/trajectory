@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import type { QuerySqlite, SourceManifest } from '@/domain/ports/data-host'
-import { zcodeAdapter } from '../zcode/adapter'
+
 import { opencodeAdapter } from '../opencode/adapter'
+import { zcodeAdapter } from '../zcode/adapter'
 
 const manifest: SourceManifest = {
   dirName: 'local/test',
@@ -21,21 +22,21 @@ function fakeQuerySqlite(table: {
   parts: Record<string, unknown>[]
 }): QuerySqlite {
   return async (_path, sql, params = []) => {
-    if (sql.includes('FROM session'))
-      return { rows: table.sessions }
+    if (sql.includes('FROM session')) return { rows: table.sessions }
     if (sql.includes('FROM message'))
-      return { rows: table.messages.filter(r => r.sessionId === params[0]) }
+      return { rows: table.messages.filter((r) => r.sessionId === params[0]) }
     if (sql.includes('FROM part'))
-      return { rows: table.parts.filter(r => r.sessionId === params[0]) }
+      return { rows: table.parts.filter((r) => r.sessionId === params[0]) }
     throw new Error(`unexpected sql: ${sql}`)
   }
 }
 
-
-function toolPayload(parts: readonly { kind: string; payload?: unknown }[] | undefined, index: number): Record<string, unknown> {
+function toolPayload(
+  parts: readonly { kind: string; payload?: unknown }[] | undefined,
+  index: number,
+): Record<string, unknown> {
   const part = parts?.[index]
-  if (part?.kind !== 'tool-call')
-    throw new Error(`expected tool-call at index ${index}`)
+  if (part?.kind !== 'tool-call') throw new Error(`expected tool-call at index ${index}`)
   return (part.payload ?? {}) as Record<string, unknown>
 }
 
@@ -43,23 +44,103 @@ const SESSION_ID = 'sess_1'
 
 const zcodeTable = {
   sessions: [
-    { id: SESSION_ID, title: 'Real session', time_created: 100, time_updated: 900, task_type: 'interactive', path: '/p' },
-    { id: 'sess_sub', title: 'subagent', time_created: 50, time_updated: 60, task_type: 'subagent_child', path: '/p' },
+    {
+      id: SESSION_ID,
+      title: 'Real session',
+      time_created: 100,
+      time_updated: 900,
+      task_type: 'interactive',
+      path: '/p',
+    },
+    {
+      id: 'sess_sub',
+      title: 'subagent',
+      time_created: 50,
+      time_updated: 60,
+      task_type: 'subagent_child',
+      path: '/p',
+    },
   ],
   messages: [
-    { sessionId: SESSION_ID, id: 'm1', time_created: 100, data: JSON.stringify({ role: 'user', semantics: { kind: 'user_prompt', origin: 'real_user', uiVisibility: 'visible' } }) },
+    {
+      sessionId: SESSION_ID,
+      id: 'm1',
+      time_created: 100,
+      data: JSON.stringify({
+        role: 'user',
+        semantics: { kind: 'user_prompt', origin: 'real_user', uiVisibility: 'visible' },
+      }),
+    },
     // agent-injected noise: dropped
-    { sessionId: SESSION_ID, id: 'm2', time_created: 150, data: JSON.stringify({ role: 'user', semantics: { kind: 'todo_reminder', uiVisibility: 'hidden' } }) },
-    { sessionId: SESSION_ID, id: 'm3', time_created: 200, data: JSON.stringify({ role: 'assistant', semantics: { kind: 'assistant_response', uiVisibility: 'visible' } }) },
-    { sessionId: SESSION_ID, id: 'm4', time_created: 250, data: JSON.stringify({ role: 'assistant', semantics: { kind: 'assistant_response', uiVisibility: 'hidden' } }) },
+    {
+      sessionId: SESSION_ID,
+      id: 'm2',
+      time_created: 150,
+      data: JSON.stringify({
+        role: 'user',
+        semantics: { kind: 'todo_reminder', uiVisibility: 'hidden' },
+      }),
+    },
+    {
+      sessionId: SESSION_ID,
+      id: 'm3',
+      time_created: 200,
+      data: JSON.stringify({
+        role: 'assistant',
+        semantics: { kind: 'assistant_response', uiVisibility: 'visible' },
+      }),
+    },
+    {
+      sessionId: SESSION_ID,
+      id: 'm4',
+      time_created: 250,
+      data: JSON.stringify({
+        role: 'assistant',
+        semantics: { kind: 'assistant_response', uiVisibility: 'hidden' },
+      }),
+    },
   ],
   parts: [
-    { sessionId: SESSION_ID, message_id: 'm1', sequence: 0, data: JSON.stringify({ type: 'text', text: 'real question' }) },
-    { sessionId: SESSION_ID, message_id: 'm1', sequence: 1, data: JSON.stringify({ type: 'text', text: 'injected', synthetic: true }) },
-    { sessionId: SESSION_ID, message_id: 'm3', sequence: 0, data: JSON.stringify({ type: 'reasoning', text: 'c'.repeat(10_000) }) },
-    { sessionId: SESSION_ID, message_id: 'm3', sequence: 1, data: JSON.stringify({ type: 'tool', tool: 'Bash', state: { status: 'error', input: { command: 'ls -la /x' }, output: '', error: 'boom' } }) },
-    { sessionId: SESSION_ID, message_id: 'm3', sequence: 2, data: JSON.stringify({ type: 'step-start' }) },
-    { sessionId: SESSION_ID, message_id: 'm3', sequence: 3, data: JSON.stringify({ type: 'mystery' }) },
+    {
+      sessionId: SESSION_ID,
+      message_id: 'm1',
+      sequence: 0,
+      data: JSON.stringify({ type: 'text', text: 'real question' }),
+    },
+    {
+      sessionId: SESSION_ID,
+      message_id: 'm1',
+      sequence: 1,
+      data: JSON.stringify({ type: 'text', text: 'injected', synthetic: true }),
+    },
+    {
+      sessionId: SESSION_ID,
+      message_id: 'm3',
+      sequence: 0,
+      data: JSON.stringify({ type: 'reasoning', text: 'c'.repeat(10_000) }),
+    },
+    {
+      sessionId: SESSION_ID,
+      message_id: 'm3',
+      sequence: 1,
+      data: JSON.stringify({
+        type: 'tool',
+        tool: 'Bash',
+        state: { status: 'error', input: { command: 'ls -la /x' }, output: '', error: 'boom' },
+      }),
+    },
+    {
+      sessionId: SESSION_ID,
+      message_id: 'm3',
+      sequence: 2,
+      data: JSON.stringify({ type: 'step-start' }),
+    },
+    {
+      sessionId: SESSION_ID,
+      message_id: 'm3',
+      sequence: 3,
+      data: JSON.stringify({ type: 'mystery' }),
+    },
   ],
 }
 
@@ -84,7 +165,7 @@ describe('zcode adapter', () => {
     expect(trajectory.id).toBe('zcode:sess_1')
 
     const nodes = [...trajectory.nodes.values()]
-    expect(nodes.map(n => n.id)).toEqual(['m1', 'm3'])
+    expect(nodes.map((n) => n.id)).toEqual(['m1', 'm3'])
     // synthetic text inside the user message is dropped
     expect(nodes[0]?.parts).toEqual([{ kind: 'text', text: 'real question' }])
     // reasoning truncates at the 8k cap; the tool error surfaces
@@ -117,16 +198,43 @@ describe('zcode adapter', () => {
 
 const opencodeTable = {
   sessions: [
-    { sessionId: '_', id: 'ses_1', title: 'New session - 2026-04-24T03:37:27.641Z', time_created: 100, time_updated: 900, directory: '/p' },
+    {
+      sessionId: '_',
+      id: 'ses_1',
+      title: 'New session - 2026-04-24T03:37:27.641Z',
+      time_created: 100,
+      time_updated: 900,
+      directory: '/p',
+    },
   ],
   messages: [
     { sessionId: 'ses_1', id: 'om1', time_created: 100, data: JSON.stringify({ role: 'user' }) },
-    { sessionId: 'ses_1', id: 'om2', time_created: 200, data: JSON.stringify({ role: 'assistant' }) },
+    {
+      sessionId: 'ses_1',
+      id: 'om2',
+      time_created: 200,
+      data: JSON.stringify({ role: 'assistant' }),
+    },
   ],
   parts: [
-    { sessionId: 'ses_1', message_id: 'om1', time_created: 100, data: JSON.stringify({ type: 'text', text: 'zustand type error' }) },
-    { sessionId: 'ses_1', message_id: 'om2', time_created: 200, data: JSON.stringify({ type: 'patch', files: ['/a.ts', '/b.ts'] }) },
-    { sessionId: 'ses_1', message_id: 'om2', time_created: 210, data: JSON.stringify({ type: 'compaction' }) },
+    {
+      sessionId: 'ses_1',
+      message_id: 'om1',
+      time_created: 100,
+      data: JSON.stringify({ type: 'text', text: 'zustand type error' }),
+    },
+    {
+      sessionId: 'ses_1',
+      message_id: 'om2',
+      time_created: 200,
+      data: JSON.stringify({ type: 'patch', files: ['/a.ts', '/b.ts'] }),
+    },
+    {
+      sessionId: 'ses_1',
+      message_id: 'om2',
+      time_created: 210,
+      data: JSON.stringify({ type: 'compaction' }),
+    },
   ],
 }
 

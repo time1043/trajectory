@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { computeGrowthOverview } from './growth-analytics'
-import type { Trajectory } from '../model/trajectory'
-import { toNodes } from '../../adapters/sources/local/common'
 import type { NodeDraft } from '../../adapters/sources/local/common'
+import type { Trajectory } from '../model/trajectory'
+
+import { toNodes } from '../../adapters/sources/local/common'
+import { computeGrowthOverview } from './growth-analytics'
 
 const HOUR = 3_600_000
 const DAY = 86_400_000
@@ -11,8 +12,18 @@ const DAY = 86_400_000
 function linear(id: string, turns: Array<{ at: number }>): Trajectory {
   const drafts: NodeDraft[] = []
   turns.forEach((turn, i) => {
-    drafts.push({ id: `${id}:u${i}`, at: turn.at, role: 'user', parts: [{ kind: 'text', text: `q${i}` }] })
-    drafts.push({ id: `${id}:a${i}`, at: turn.at + HOUR, role: 'assistant', parts: [{ kind: 'text', text: `r${i}` }] })
+    drafts.push({
+      id: `${id}:u${i}`,
+      at: turn.at,
+      role: 'user',
+      parts: [{ kind: 'text', text: `q${i}` }],
+    })
+    drafts.push({
+      id: `${id}:a${i}`,
+      at: turn.at + HOUR,
+      role: 'assistant',
+      parts: [{ kind: 'text', text: `r${i}` }],
+    })
   })
   return {
     id: `test:${id}`,
@@ -21,7 +32,7 @@ function linear(id: string, turns: Array<{ at: number }>): Trajectory {
     startedAt: turns[0]?.at ?? 0,
     updatedAt: turns.length ? turns[turns.length - 1].at + HOUR : 0,
     nodes: toNodes(drafts),
-    activePath: drafts.map(d => d.id),
+    activePath: drafts.map((d) => d.id),
   }
 }
 
@@ -41,7 +52,7 @@ describe('computeGrowthOverview', () => {
       linear('b', [{ at: day0 + HOUR }]),
       linear('c', [{ at: day1 }]),
     ])
-    const byDay = new Map(overview.daily.map(d => [d.day, d]))
+    const byDay = new Map(overview.daily.map((d) => [d.day, d]))
     const key0 = new Date(day0).toISOString().slice(0, 10)
     const key1 = new Date(day1).toISOString().slice(0, 10)
     expect(byDay.get(key0)).toMatchObject({ turns: 3, trajectories: 2 })

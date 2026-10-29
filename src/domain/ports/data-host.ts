@@ -24,7 +24,11 @@ export interface SqliteQueryResult {
   rows: Record<string, unknown>[]
 }
 
-export type QuerySqlite = (path: string, sql: string, params?: readonly unknown[]) => Promise<SqliteQueryResult>
+export type QuerySqlite = (
+  path: string,
+  sql: string,
+  params?: readonly unknown[],
+) => Promise<SqliteQueryResult>
 
 /** HMR custom event name — keep in sync with plugins/trajectory-data.ts */
 export const DATA_API_HMR_EVENT = 'trajectory:data-changed'

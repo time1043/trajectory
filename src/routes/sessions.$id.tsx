@@ -1,10 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
 
-import { documentViewFamily, trajectoryByIdFamily, variantPathsAtom } from '@/app/stores/detail'
+import type { WebResult } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
 import type { DocBlock } from '@/domain/services/document-view'
-import type { WebResult } from '@/domain/model/part'
+
+import { documentViewFamily, trajectoryByIdFamily, variantPathsAtom } from '@/app/stores/detail'
 import EmptyState from '@/components/empty-state'
 import { withSuspense } from '@/components/loading'
 import ProviderDot from '@/components/provider-dot'
@@ -20,10 +21,17 @@ function SessionDetail() {
   const view = useAtomValue(documentViewFamily(id))
   const trajectory = useAtomValue(trajectoryByIdFamily(id))
 
-  if (!view || !trajectory)
-    return <EmptyState>{'{ session not found }'}</EmptyState>
+  if (!view || !trajectory) return <EmptyState>{'{ session not found }'}</EmptyState>
 
-  return <SessionContent key={trajectory.id} trajectory={trajectory} blocks={view.blocks} references={view.references} citationWindows={view.citationWindows} />
+  return (
+    <SessionContent
+      key={trajectory.id}
+      trajectory={trajectory}
+      blocks={view.blocks}
+      references={view.references}
+      citationWindows={view.citationWindows}
+    />
+  )
 }
 
 interface ContentView {
@@ -35,7 +43,7 @@ interface ContentView {
 
 function SessionContent({ trajectory, blocks, references, citationWindows }: ContentView) {
   const switched = useAtomValue(variantPathsAtom).has(trajectory.id)
-  const userCount = blocks.filter(b => b.node.role === 'user' && b.chainIndex === 0).length
+  const userCount = blocks.filter((b) => b.node.role === 'user' && b.chainIndex === 0).length
 
   return (
     // key = path hash: after a variant switch the whole path re-renders as one
@@ -55,7 +63,7 @@ function SessionContent({ trajectory, blocks, references, citationWindows }: Con
       </div>
 
       <div className="mt-10 space-y-9">
-        {blocks.map(block => (
+        {blocks.map((block) => (
           <MessageBlock
             key={block.node.id}
             trajectory={trajectory}

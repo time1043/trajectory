@@ -1,6 +1,7 @@
-import type { QuerySqlite } from '@/domain/ports/data-host'
-import type { ParsedSource, Trajectory } from '@/domain/model/trajectory'
 import type { Part, ToolCallPayload } from '@/domain/model/part'
+import type { ParsedSource, Trajectory } from '@/domain/model/trajectory'
+import type { QuerySqlite } from '@/domain/ports/data-host'
+
 import {
   buildTrajectory,
   toolPart,
@@ -43,8 +44,7 @@ export async function parseOpencodeFamily(opts: {
 
   const sessions = (await querySqlite(opts.dbPath, dialect.sessionsSql)).rows
   for (const session of sessions) {
-    if (dialect.filterSession?.(session))
-      continue
+    if (dialect.filterSession?.(session)) continue
     const sessionId = String(session.id)
     const drafts: NodeDraft[] = []
     let firstPrompt = ''
@@ -64,26 +64,20 @@ export async function parseOpencodeFamily(opts: {
 
     for (const message of messages.rows) {
       const data = JSON.parse(String(message.data)) as Record<string, unknown>
-      if (dialect.skipMessage(data))
-        continue
-      const role = data.role === 'user' ? 'user' as const : 'assistant' as const
-      const model = role === 'assistant'
-        ? (data.modelID ?? data.modelId ?? null)
-        : null
+      if (dialect.skipMessage(data)) continue
+      const role = data.role === 'user' ? ('user' as const) : ('assistant' as const)
+      const model = role === 'assistant' ? (data.modelID ?? data.modelId ?? null) : null
 
       const draftParts: Part[] = []
       for (const partData of partsByMessage.get(String(message.id)) ?? []) {
         const part = mapPart(partData, dialect, build.unknownPartCounts)
-        if (part)
-          draftParts.push(part)
+        if (part) draftParts.push(part)
       }
-      if (!draftParts.length)
-        continue
+      if (!draftParts.length) continue
 
       if (role === 'user' && !firstPrompt) {
-        const text = draftParts.find(p => p.kind === 'text')
-        if (text && text.kind === 'text')
-          firstPrompt = text.text
+        const text = draftParts.find((p) => p.kind === 'text')
+        if (text && text.kind === 'text') firstPrompt = text.text
       }
 
       drafts.push({
@@ -95,14 +89,11 @@ export async function parseOpencodeFamily(opts: {
       })
     }
 
-    if (!drafts.length)
-      continue
+    if (!drafts.length) continue
 
     let title = String(session.title ?? '')
-    if (dialect.normalizeTitle)
-      title = dialect.normalizeTitle(title)
-    if (!title)
-      title = titleFromPrompt(firstPrompt) || '(untitled)'
+    if (dialect.normalizeTitle) title = dialect.normalizeTitle(title)
+    if (!title) title = titleFromPrompt(firstPrompt) || '(untitled)'
 
     const trajectory: Trajectory = buildTrajectory({
       sourceId: opts.sourceId,
@@ -124,11 +115,14 @@ export async function parseOpencodeFamily(opts: {
   }
 }
 
-function mapPart(pd: Record<string, unknown>, dialect: OpencodeFamilyDialect, unknownCounts: Record<string, number>): Part | null {
+function mapPart(
+  pd: Record<string, unknown>,
+  dialect: OpencodeFamilyDialect,
+  unknownCounts: Record<string, number>,
+): Part | null {
   switch (pd.type) {
     case 'text': {
-      if (pd.synthetic === true)
-        return null
+      if (pd.synthetic === true) return null
       const text = typeof pd.text === 'string' ? pd.text : ''
       return text ? { kind: 'text', text } : null
     }
@@ -141,20 +135,26 @@ function mapPart(pd: Record<string, unknown>, dialect: OpencodeFamilyDialect, un
       const rawOutput = typeof state.output === 'string' ? state.output : ''
       const rawError = typeof state.error === 'string' ? state.error : ''
       const payload: ToolCallPayload = {
-        title: toolTitleFromInput(state.input) ?? (typeof state.title === 'string' ? state.title : undefined),
+        title:
+          toolTitleFromInput(state.input) ??
+          (typeof state.title === 'string' ? state.title : undefined),
         input: state.input,
         ...truncatedOutput(rawOutput || rawError),
       }
-      if (state.status === 'error')
-        payload.error = rawError || 'error'
+      if (state.status === 'error') payload.error = rawError || 'error'
       return toolPart(String(pd.tool ?? 'tool'), payload)
     }
     case 'file': {
       const mime = typeof pd.mime === 'string' ? pd.mime : 'application/octet-stream'
       // artifact/data URLs cannot be read here — keep the placeholder only
       const url = typeof pd.url === 'string' ? pd.url : ''
-      const fileId = url.startsWith('data:') ? `${mime}@${url.length}` : url || String(pd.id ?? 'file')
-      return { kind: 'attachment', files: [{ fileId: fileId.slice(0, 80), fileName: mime, fileSize: 0 }] }
+      const fileId = url.startsWith('data:')
+        ? `${mime}@${url.length}`
+        : url || String(pd.id ?? 'file')
+      return {
+        kind: 'attachment',
+        files: [{ fileId: fileId.slice(0, 80), fileName: mime, fileSize: 0 }],
+      }
     }
     default:
       return dialect.extraPart(pd, unknownCounts)

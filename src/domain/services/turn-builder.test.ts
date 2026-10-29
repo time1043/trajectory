@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildTurns, switchVariant } from './turn-builder'
 import { at, makeTrajectory, reasoning, text, tool } from '../../test/fixtures'
+import { buildTurns, switchVariant } from './turn-builder'
 
 describe('buildTurns', () => {
   it('linearizes user/assistant pairs into turns', () => {
@@ -60,7 +60,13 @@ describe('buildTurns', () => {
   it('estimates character volume for lazy placeholders', () => {
     const t = makeTrajectory([
       { id: 'u1', role: 'user', at: at(0), parent: null, parts: [text('0123456789'.repeat(10))] },
-      { id: 'a1', role: 'assistant', at: at(1), parent: 'u1', parts: [reasoning('x'.repeat(500)), tool('Bash', 'y'.repeat(300))] },
+      {
+        id: 'a1',
+        role: 'assistant',
+        at: at(1),
+        parent: 'u1',
+        parts: [reasoning('x'.repeat(500)), tool('Bash', 'y'.repeat(300))],
+      },
     ])
     const turns = buildTurns(t)
     // text + reasoning count; tool outputs stay collapsed so they do not

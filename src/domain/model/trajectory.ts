@@ -38,7 +38,8 @@ export interface ParsedSource {
 
 /** Kinds allowed in a user node (attachments ride the prompt; reasoning/search/tools are assistant-side) */
 export function hasForeignParts(node: MessageNode): boolean {
-  if (node.role !== 'user')
-    return false
-  return node.parts.some(p => p.kind === 'reasoning' || p.kind === 'search' || p.kind === 'tool-call')
+  if (node.role !== 'user') return false
+  return node.parts.some(
+    (p) => p.kind === 'reasoning' || p.kind === 'search' || p.kind === 'tool-call',
+  )
 }

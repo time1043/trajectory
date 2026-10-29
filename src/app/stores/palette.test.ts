@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import type { PaletteItem } from './palette'
-import { scorePaletteItem } from './palette'
 import type { TrajectoryRow } from '@/app/derive'
 
+import type { PaletteItem } from './palette'
+
+import { scorePaletteItem } from './palette'
+
 function item(title: string, text: string): PaletteItem {
-  const row = { id: 't:1', sourceId: 't', title, startedAt: 0, updatedAt: 0, turnCount: 1, msgCount: 1, primaryTopic: 'other' } as TrajectoryRow
+  const row = {
+    id: 't:1',
+    sourceId: 't',
+    title,
+    startedAt: 0,
+    updatedAt: 0,
+    turnCount: 1,
+    msgCount: 1,
+    primaryTopic: 'other',
+  } as TrajectoryRow
   return { row, text: `${title}\n${text}` }
 }
 

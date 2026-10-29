@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { NodeDraft } from './common'
+
 import {
   buildTrajectory,
   parseJsonl,
@@ -86,21 +87,34 @@ describe('toNodes + buildTrajectory', () => {
   })
 
   it('builds a trajectory with a linear active path and title fallback', () => {
-    const trajectory = buildTrajectory({ sourceId: 'test', rawId: 'r1', title: '', startedAt: 1, updatedAt: 3, drafts })
+    const trajectory = buildTrajectory({
+      sourceId: 'test',
+      rawId: 'r1',
+      title: '',
+      startedAt: 1,
+      updatedAt: 3,
+      drafts,
+    })
     expect(trajectory.id).toBe('test:r1')
     expect(trajectory.activePath).toEqual(['u1', 'a1', 'u2'])
     expect(trajectory.title).toBe('(untitled)')
   })
 
   it('produces connectivity-clean trees (invariant-safe by construction)', () => {
-    const trajectory = buildTrajectory({ sourceId: 'test', rawId: 'r1', title: 't', startedAt: 1, updatedAt: 3, drafts })
+    const trajectory = buildTrajectory({
+      sourceId: 'test',
+      rawId: 'r1',
+      title: 't',
+      startedAt: 1,
+      updatedAt: 3,
+      drafts,
+    })
     // multi-node trajectories must pass the connectivity invariant
     const reachable = new Set<string>()
-    const stack = [...trajectory.nodes.values()].filter(n => n.parentId === null).map(n => n.id)
+    const stack = [...trajectory.nodes.values()].filter((n) => n.parentId === null).map((n) => n.id)
     while (stack.length) {
       const id = stack.pop()!
-      if (reachable.has(id))
-        continue
+      if (reachable.has(id)) continue
       reachable.add(id)
       stack.push(...trajectory.nodes.get(id)!.childIds)
     }

@@ -20,8 +20,7 @@ interface MdastNode {
 export function remarkCitations() {
   return (tree: MdastNode) => {
     const walk = (parent: MdastNode) => {
-      if (!parent.children)
-        return
+      if (!parent.children) return
       const next: MdastNode[] = []
       for (const child of parent.children) {
         if (child.type === 'text' && child.value && child.value.includes('[citation:')) {
@@ -34,8 +33,7 @@ export function remarkCitations() {
           let last = 0
           for (const match of matches) {
             const start = match.index ?? 0
-            if (start > last)
-              next.push({ type: 'text', value: child.value.slice(last, start) })
+            if (start > last) next.push({ type: 'text', value: child.value.slice(last, start) })
             next.push({
               type: 'citation',
               value: match[1],
@@ -47,12 +45,10 @@ export function remarkCitations() {
             })
             last = start + match[0].length
           }
-          if (last < child.value.length)
-            next.push({ type: 'text', value: child.value.slice(last) })
+          if (last < child.value.length) next.push({ type: 'text', value: child.value.slice(last) })
           continue
         }
-        if (child.children)
-          walk(child)
+        if (child.children) walk(child)
         next.push(child)
       }
       parent.children = next
@@ -66,4 +62,7 @@ export interface CitationContextValue {
   references: readonly WebResult[]
 }
 
-export const CitationContext = createContext<CitationContextValue>({ window: undefined, references: [] })
+export const CitationContext = createContext<CitationContextValue>({
+  window: undefined,
+  references: [],
+})

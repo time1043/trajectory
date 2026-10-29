@@ -1,5 +1,6 @@
 import type { EpochMs } from '../model/identity'
 import type { Trajectory } from '../model/trajectory'
+
 import { buildTurns } from './turn-builder'
 
 export interface DailyActivity {
@@ -32,8 +33,7 @@ function localDay(at: EpochMs): string {
 }
 
 function computeStreaks(days: readonly string[]): { current: number; longest: number } {
-  if (!days.length)
-    return { current: 0, longest: 0 }
+  if (!days.length) return { current: 0, longest: 0 }
   const sorted = [...days].sort()
   const DAY = 86_400_000
   let longest = 1
@@ -41,8 +41,7 @@ function computeStreaks(days: readonly string[]): { current: number; longest: nu
   for (let i = 1; i < sorted.length; i++) {
     const gap = Math.round((Date.parse(sorted[i]) - Date.parse(sorted[i - 1])) / DAY)
     run = gap === 1 ? run + 1 : 1
-    if (run > longest)
-      longest = run
+    if (run > longest) longest = run
   }
   // current streak: walk back from today, tolerating "not active yet today"
   const today = new Date()
@@ -68,10 +67,8 @@ export function computeGrowthOverview(trajectories: readonly Trajectory[]): Grow
 
   for (const t of trajectories) {
     totalMessages += t.nodes.size
-    if (firstAt === null || t.startedAt < firstAt)
-      firstAt = t.startedAt
-    if (lastAt === null || t.updatedAt > lastAt)
-      lastAt = t.updatedAt
+    if (firstAt === null || t.startedAt < firstAt) firstAt = t.startedAt
+    if (lastAt === null || t.updatedAt > lastAt) lastAt = t.updatedAt
 
     const turns = buildTurns(t)
     totalTurns += turns.length
@@ -87,16 +84,16 @@ export function computeGrowthOverview(trajectories: readonly Trajectory[]): Grow
     }
     for (const day of touched) {
       const entry = byDay.get(day)
-      if (entry)
-        entry.trajectories++
+      if (entry) entry.trajectories++
     }
   }
 
   const daily = [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day))
-  const { current, longest } = computeStreaks(daily.map(d => d.day))
-  const spanDays = firstAt !== null && lastAt !== null
-    ? Math.max(1, Math.round((lastAt - firstAt) / 86_400_000) + 1)
-    : 0
+  const { current, longest } = computeStreaks(daily.map((d) => d.day))
+  const spanDays =
+    firstAt !== null && lastAt !== null
+      ? Math.max(1, Math.round((lastAt - firstAt) / 86_400_000) + 1)
+      : 0
 
   return {
     totalSessions: trajectories.length,

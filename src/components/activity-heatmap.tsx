@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useMemo } from 'react'
 
 import type { EpochMs } from '@/domain/model/identity'
 import type { DailyActivity } from '@/domain/services/growth-analytics'
+
 import { MONTH_SHORT, fmtDate } from '@/lib/format'
 
 const DAY = 86_400_000
@@ -24,14 +25,10 @@ const LEVEL_CLASS: Record<HeatCell['level'], string> = {
 }
 
 function levelOf(count: number): HeatCell['level'] {
-  if (count <= 0)
-    return 0
-  if (count <= 2)
-    return 1
-  if (count <= 5)
-    return 2
-  if (count <= 9)
-    return 3
+  if (count <= 0) return 0
+  if (count <= 2) return 1
+  if (count <= 5) return 2
+  if (count <= 9) return 3
   return 4
 }
 
@@ -53,7 +50,11 @@ function formatLabel(d: Date): string {
  * ragged short rows, and rows read as growth years. Under one year of data it
  * degrades to a single left-aligned row.
  */
-export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
+export default function ActivityHeatmap({
+  daily,
+  firstAt,
+  lastAt,
+}: {
   daily: readonly DailyActivity[]
   firstAt: EpochMs
   lastAt: EpochMs
@@ -61,9 +62,8 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
   const navigate = useNavigate()
 
   const rows = useMemo(() => {
-    if (!firstAt || !lastAt)
-      return []
-    const counts = new Map(daily.map(d => [d.day, d.turns]))
+    if (!firstAt || !lastAt) return []
+    const counts = new Map(daily.map((d) => [d.day, d.turns]))
 
     const anchor = mondayOf(new Date(firstAt))
     anchor.setDate(1) // first day of the first active month, snapped back to Monday
@@ -79,14 +79,13 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
     last.setHours(0, 0, 0, 0)
 
     return rowStarts.map((rowStart) => {
-      const columns: { label: string | null, cells: HeatCell[] }[] = []
+      const columns: { label: string | null; cells: HeatCell[] }[] = []
       let prevMonth = -1
       let lastLabelWeek = -99
       for (let w = 0; w < WEEKS_PER_ROW; w++) {
         const weekStart = new Date(rowStart)
         weekStart.setDate(rowStart.getDate() + 7 * w)
-        if (weekStart.getTime() > last.getTime() + 7 * DAY)
-          break
+        if (weekStart.getTime() > last.getTime() + 7 * DAY) break
 
         const cells: HeatCell[] = []
         for (let d = 0; d < 7; d++) {
@@ -100,11 +99,11 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
 
         // label on month change, at least 3 weeks after the previous one, or the text overlaps
         const month = weekStart.getMonth()
-        const label = month !== prevMonth && w < WEEKS_PER_ROW - 1 && w - lastLabelWeek >= 3
-          ? MONTH_SHORT[month]
-          : null
-        if (label)
-          lastLabelWeek = w
+        const label =
+          month !== prevMonth && w < WEEKS_PER_ROW - 1 && w - lastLabelWeek >= 3
+            ? MONTH_SHORT[month]
+            : null
+        if (label) lastLabelWeek = w
         prevMonth = month
         columns.push({ label, cells })
       }
@@ -112,17 +111,14 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
     })
   }, [daily, firstAt, lastAt])
 
-  if (!rows.length)
-    return null
+  if (!rows.length) return null
 
   return (
     <div className="flex flex-col gap-5 overflow-x-auto pb-2">
       {rows.map((row, ri) => (
         <div key={ri} className="flex items-start gap-3">
           <div className="w-20 shrink-0 font-mono text-xs whitespace-nowrap text-low">
-            {formatLabel(row.start)}
-            {' '}
-            →
+            {formatLabel(row.start)} →
           </div>
           <div className="flex gap-[3px]">
             {row.columns.map((col, ci) => (
@@ -135,13 +131,14 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
                   )}
                 </div>
                 {col.cells.map((cell) => {
-                  if (cell.future)
-                    return <div key={cell.day} className="size-[10px] opacity-0" />
+                  if (cell.future) return <div key={cell.day} className="size-[10px] opacity-0" />
                   return (
                     <button
                       key={cell.day}
                       type="button"
-                      onClick={() => void navigate({ to: '/sessions', search: { from: cell.day, to: cell.day } })}
+                      onClick={() =>
+                        void navigate({ to: '/sessions', search: { from: cell.day, to: cell.day } })
+                      }
                       className={`group relative size-[10px] rounded-[2px] transition-transform duration-100 hover:scale-125 ${LEVEL_CLASS[cell.level]}`}
                     >
                       <span className="pointer-events-none absolute bottom-full left-1/2 z-20 hidden -translate-x-1/2 pb-1.5 group-hover:block">
@@ -159,8 +156,11 @@ export default function ActivityHeatmap({ daily, firstAt, lastAt }: {
       ))}
       <div className="flex items-center gap-1.5 pl-[92px] font-mono text-[10px] text-faint">
         Less
-        {[0, 1, 2, 3, 4].map(level => (
-          <span key={level} className={`size-[10px] rounded-[2px] ${LEVEL_CLASS[level as HeatCell['level']]}`} />
+        {[0, 1, 2, 3, 4].map((level) => (
+          <span
+            key={level}
+            className={`size-[10px] rounded-[2px] ${LEVEL_CLASS[level as HeatCell['level']]}`}
+          />
         ))}
         More
       </div>

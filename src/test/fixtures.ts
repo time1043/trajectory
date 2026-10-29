@@ -2,6 +2,7 @@ import type { EpochMs, NodeId } from '@/domain/model/identity'
 import type { MessageNode, Role } from '@/domain/model/message-node'
 import type { Part } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
+
 import { defaultActivePath } from '@/domain/services/turn-builder'
 
 /**
@@ -33,7 +34,7 @@ export function reasoning(text: string): Part {
   return { kind: 'reasoning', text }
 }
 
-export function search(results: Array<{ url: string, title: string }>): Part {
+export function search(results: Array<{ url: string; title: string }>): Part {
   return { kind: 'search', results }
 }
 
@@ -47,7 +48,7 @@ export function makeTrajectory(specs: readonly NodeSpec[]): Trajectory {
     nodes.set(spec.id, {
       id: spec.id,
       parentId: spec.parent,
-      childIds: specs.filter(s => s.parent === spec.id).map(s => s.id),
+      childIds: specs.filter((s) => s.parent === spec.id).map((s) => s.id),
       role: spec.role,
       model: spec.model ?? null,
       at: spec.at,
@@ -58,8 +59,8 @@ export function makeTrajectory(specs: readonly NodeSpec[]): Trajectory {
     id: 'test:t1',
     sourceId: 'test',
     title: 'fixture',
-    startedAt: specs.length ? Math.min(...specs.map(s => s.at)) : 0,
-    updatedAt: specs.length ? Math.max(...specs.map(s => s.at)) : 0,
+    startedAt: specs.length ? Math.min(...specs.map((s) => s.at)) : 0,
+    updatedAt: specs.length ? Math.max(...specs.map((s) => s.at)) : 0,
     nodes,
     activePath: defaultActivePath(nodes),
   }

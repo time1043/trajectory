@@ -1,9 +1,11 @@
-import { trajectoryId } from '@/domain/model/identity'
 import type { MessageNode } from '@/domain/model/message-node'
 import type { Part, WebResult } from '@/domain/model/part'
-import { defaultActivePath } from '@/domain/services/turn-builder'
 import type { PersonaProfile, ParsedSource, Trajectory } from '@/domain/model/trajectory'
 import type { SourceManifest } from '@/domain/ports/data-host'
+
+import { trajectoryId } from '@/domain/model/identity'
+import { defaultActivePath } from '@/domain/services/turn-builder'
+
 import type { RawConversation, RawFragment, RawUser } from './types'
 
 const CONVERSATIONS_FILE = 'conversations.json'
@@ -11,7 +13,7 @@ const USER_FILE = 'user.json'
 
 // Data audit: user/assistant fragments never mix within one message
 function roleOf(fragments: RawFragment[]): MessageNode['role'] {
-  return fragments.some(f => f.type === 'REQUEST' || f.type === 'FILE') ? 'user' : 'assistant'
+  return fragments.some((f) => f.type === 'REQUEST' || f.type === 'FILE') ? 'user' : 'assistant'
 }
 
 function toPart(fragment: RawFragment): Part {
@@ -24,7 +26,7 @@ function toPart(fragment: RawFragment): Part {
     case 'FILE':
       return {
         kind: 'attachment',
-        files: (fragment.files ?? []).map(f => ({
+        files: (fragment.files ?? []).map((f) => ({
           fileId: f.file_id,
           fileName: f.file_name,
           fileSize: f.file_size,
@@ -47,8 +49,7 @@ function toEpochMs(iso: string): number {
 
 function maskEmail(email: string): string {
   const [local, domain] = email.split('@')
-  if (!domain)
-    return '***'
+  if (!domain) return '***'
   return `${local.slice(0, 3)}****@${domain}`
 }
 
@@ -59,8 +60,7 @@ function maskPhone(phone: string): string {
 function safeParse(json: string): { name?: string } | undefined {
   try {
     return JSON.parse(json)
-  }
-  catch {
+  } catch {
     return undefined
   }
 }
@@ -68,18 +68,16 @@ function safeParse(json: string): { name?: string } | undefined {
 function safeParseUser(json: string): RawUser | undefined {
   try {
     return JSON.parse(json) as RawUser
-  }
-  catch {
+  } catch {
     return undefined
   }
 }
 
 function buildProfile(raw: RawUser | undefined): PersonaProfile | null {
-  if (!raw)
-    return null
+  if (!raw) return null
   const oauthName = raw.oauth_profiles
-    ?.map(p => safeParse(p.profile_json))
-    .find(profile => !!profile?.name)?.name as string | undefined
+    ?.map((p) => safeParse(p.profile_json))
+    .find((profile) => !!profile?.name)?.name as string | undefined
   return {
     displayName: oauthName ?? (raw.user_id ? raw.user_id.slice(0, 8) : 'unknown'),
     identifiers: [
@@ -89,14 +87,17 @@ function buildProfile(raw: RawUser | undefined): PersonaProfile | null {
   }
 }
 
-export function parseDeepseek(manifest: SourceManifest, files: Map<string, ArrayBuffer>): ParsedSource {
-  const conversationsPath = manifest.files.find(f => f.path.endsWith(CONVERSATIONS_FILE))?.path
+export function parseDeepseek(
+  manifest: SourceManifest,
+  files: Map<string, ArrayBuffer>,
+): ParsedSource {
+  const conversationsPath = manifest.files.find((f) => f.path.endsWith(CONVERSATIONS_FILE))?.path
   const conversationsRaw = conversationsPath ? files.get(conversationsPath) : undefined
   if (!conversationsPath || !conversationsRaw)
     throw new Error('deepseek: conversations.json not found in manifest')
 
   const conversations = JSON.parse(new TextDecoder().decode(conversationsRaw)) as RawConversation[]
-  const userPath = manifest.files.find(f => f.path.endsWith(USER_FILE))?.path
+  const userPath = manifest.files.find((f) => f.path.endsWith(USER_FILE))?.path
   const userRaw = userPath ? files.get(userPath) : undefined
   const profile = buildProfile(
     userRaw ? safeParseUser(new TextDecoder().decode(userRaw)) : undefined,
@@ -110,8 +111,7 @@ export function parseDeepseek(manifest: SourceManifest, files: Map<string, Array
     const nodes = new Map<string, MessageNode>()
 
     for (const [nodeId, rawNode] of Object.entries(raw.mapping)) {
-      if (!rawNode.message || nodeId === 'root')
-        continue
+      if (!rawNode.message || nodeId === 'root') continue
       const parts = rawNode.message.fragments.map(toPart)
       for (const part of parts) {
         if (part.kind === 'unknown')
@@ -119,8 +119,9 @@ export function parseDeepseek(manifest: SourceManifest, files: Map<string, Array
       }
       // childIds ascending by at (I4; normalized here, the export does not guarantee it)
       const childIds = [...rawNode.children].sort(
-        (a, b) => (raw.mapping[a]?.message ? toEpochMs(raw.mapping[a].message!.inserted_at) : 0)
-          - (raw.mapping[b]?.message ? toEpochMs(raw.mapping[b].message!.inserted_at) : 0),
+        (a, b) =>
+          (raw.mapping[a]?.message ? toEpochMs(raw.mapping[a].message!.inserted_at) : 0) -
+          (raw.mapping[b]?.message ? toEpochMs(raw.mapping[b].message!.inserted_at) : 0),
       )
       nodes.set(nodeId, {
         id: nodeId,

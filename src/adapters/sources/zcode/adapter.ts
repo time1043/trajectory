@@ -1,5 +1,6 @@
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { SourceAdapter } from '@/domain/ports/source-adapter'
+
 import { parseOpencodeFamily } from '../local/opencode-family'
 
 /**
@@ -12,26 +13,31 @@ export const zcodeAdapter: SourceAdapter = {
   id: 'zcode',
   label: 'ZCode',
   detect(manifest: SourceManifest): boolean {
-    return manifest.files.some(f => f.path.endsWith('/db.sqlite'))
+    return manifest.files.some((f) => f.path.endsWith('/db.sqlite'))
   },
   async parse({ manifest, querySqlite }) {
-    const dbPath = manifest.files.find(f => f.path.endsWith('/db.sqlite'))!.path
+    const dbPath = manifest.files.find((f) => f.path.endsWith('/db.sqlite'))!.path
     return parseOpencodeFamily({
       querySqlite,
       sourceId: 'zcode',
       label: 'ZCode',
       dbPath,
       dialect: {
-        sessionsSql: 'SELECT id, title, time_created, time_updated, parent_id, task_type, path FROM session WHERE time_deleted IS NULL ORDER BY time_updated DESC',
-        messagesSql: 'SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY sequence, time_created',
-        partsSql: 'SELECT message_id, sequence, data FROM part WHERE session_id = ? ORDER BY sequence',
-        filterSession: row => row.task_type === 'subagent_child',
+        sessionsSql:
+          'SELECT id, title, time_created, time_updated, parent_id, task_type, path FROM session WHERE time_deleted IS NULL ORDER BY time_updated DESC',
+        messagesSql:
+          'SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY sequence, time_created',
+        partsSql:
+          'SELECT message_id, sequence, data FROM part WHERE session_id = ? ORDER BY sequence',
+        filterSession: (row) => row.task_type === 'subagent_child',
         skipMessage(data) {
           const semantics = (data.semantics ?? {}) as Record<string, unknown>
           if (data.role === 'user') {
-            return !(semantics.kind === 'user_prompt'
-              && semantics.origin === 'real_user'
-              && semantics.uiVisibility === 'visible')
+            return !(
+              semantics.kind === 'user_prompt' &&
+              semantics.origin === 'real_user' &&
+              semantics.uiVisibility === 'visible'
+            )
           }
           return semantics.uiVisibility === 'hidden' || semantics.kind === 'timeline_event'
         },

@@ -1,5 +1,6 @@
 import type { NodeId } from './identity'
 import type { Trajectory } from './trajectory'
+
 import { hasForeignParts } from './trajectory'
 
 /**
@@ -11,11 +12,10 @@ export function checkInvariants(t: Trajectory): readonly string[] {
   const violations: string[] = []
 
   // I1 single connected acyclic tree: every node reachable from a top-level one
-  const topLevels = [...t.nodes.values()].filter(n => n.parentId === null)
-  if (topLevels.length === 0)
-    violations.push(`${t.id}: no top-level node`)
+  const topLevels = [...t.nodes.values()].filter((n) => n.parentId === null)
+  if (topLevels.length === 0) violations.push(`${t.id}: no top-level node`)
   const reachable = new Set<NodeId>()
-  const stack = [...topLevels.map(n => n.id)]
+  const stack = [...topLevels.map((n) => n.id)]
   while (stack.length) {
     const id = stack.pop()!
     if (reachable.has(id)) {
@@ -50,8 +50,7 @@ export function checkInvariants(t: Trajectory): readonly string[] {
   }
 
   // I5 startedAt <= updatedAt
-  if (!(t.startedAt <= t.updatedAt))
-    violations.push(`${t.id}: startedAt > updatedAt`)
+  if (!(t.startedAt <= t.updatedAt)) violations.push(`${t.id}: startedAt > updatedAt`)
 
   // I6 activePath starts at a top-level node and stays parent-connected
   if (t.activePath.length) {
@@ -67,4 +66,3 @@ export function checkInvariants(t: Trajectory): readonly string[] {
 
   return violations
 }
-

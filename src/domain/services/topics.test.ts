@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { OTHER_TOPIC, assignTopic } from './topics'
 import type { TopicDef } from './topics'
+
+import { OTHER_TOPIC, assignTopic } from './topics'
 
 const defs: readonly TopicDef[] = [
   { id: 'coding', label: 'Coding', patterns: ['react', '报错'] },

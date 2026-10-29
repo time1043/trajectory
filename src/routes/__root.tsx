@@ -3,10 +3,10 @@ import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { useSetAtom } from 'jotai'
 import { useEffect } from 'react'
 
-import CommandPalette from '@/components/command-palette'
-import AppSidebar from '@/components/app-sidebar'
-import ScrollTop from '@/components/scroll-top'
 import { paletteOpenAtom } from '@/app/stores/palette'
+import AppSidebar from '@/components/app-sidebar'
+import CommandPalette from '@/components/command-palette'
+import ScrollTop from '@/components/scroll-top'
 
 const RootLayout = () => {
   const setPaletteOpen = useSetAtom(paletteOpenAtom)
@@ -16,7 +16,7 @@ const RootLayout = () => {
     const onKeydown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        setPaletteOpen(open => !open)
+        setPaletteOpen((open) => !open)
       }
     }
     window.addEventListener('keydown', onKeydown)

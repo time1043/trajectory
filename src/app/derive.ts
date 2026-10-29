@@ -1,14 +1,14 @@
 import type { EpochMs, SourceId, TrajectoryId } from '@/domain/model/identity'
 import type { ParsedSource, Trajectory } from '@/domain/model/trajectory'
-import { buildTurns } from '@/domain/services/turn-builder'
-import { OTHER_TOPIC, assignTopic } from '@/domain/services/topics'
+
 import { topicDictionary } from '@/adapters/topics/dictionary'
+import { OTHER_TOPIC, assignTopic } from '@/domain/services/topics'
+import { buildTurns } from '@/domain/services/turn-builder'
 
 /** topic id -> display label; unmatched ('other') returns undefined and the UI hides it */
 export function topicLabel(id: string): string | undefined {
-  if (id === OTHER_TOPIC)
-    return undefined
-  return topicDictionary.find(def => def.id === id)?.label
+  if (id === OTHER_TOPIC) return undefined
+  return topicDictionary.find((def) => def.id === id)?.label
 }
 
 /**
@@ -37,9 +37,8 @@ export function firstUserText(t: Trajectory): string {
   for (const nodeId of t.activePath) {
     const node = t.nodes.get(nodeId)
     if (node?.role === 'user') {
-      const text = node.parts.find(p => p.kind === 'text')
-      if (text && text.kind === 'text')
-        return text.text
+      const text = node.parts.find((p) => p.kind === 'text')
+      if (text && text.kind === 'text') return text.text
     }
   }
   return ''

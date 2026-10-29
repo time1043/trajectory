@@ -1,9 +1,11 @@
+import type { Highlighter } from 'shiki'
+
+import { isValidElement, useEffect, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { Highlighter } from 'shiki'
-import { isValidElement, useEffect, useState, type ReactNode } from 'react'
 
 import type { WebResult } from '@/domain/model/part'
+
 import CitationSup from './citation-sup'
 import { CitationContext, remarkCitations, type CitationContextValue } from './remark-citations'
 
@@ -16,21 +18,40 @@ import { CitationContext, remarkCitations, type CitationContextValue } from './r
 let highlighterPromise: Promise<Highlighter> | null = null
 
 function getHighlighter() {
-  highlighterPromise ??= import('shiki').then(shiki =>
+  highlighterPromise ??= import('shiki').then((shiki) =>
     shiki.createHighlighter({
       themes: ['github-light', 'github-dark'],
       langs: [
-        'typescript', 'javascript', 'tsx', 'jsx', 'python', 'bash', 'json',
-        'css', 'html', 'markdown', 'yaml', 'sql', 'go', 'rust', 'java',
-        'kotlin', 'swift', 'dart', 'c', 'cpp', 'diff', 'shell',
+        'typescript',
+        'javascript',
+        'tsx',
+        'jsx',
+        'python',
+        'bash',
+        'json',
+        'css',
+        'html',
+        'markdown',
+        'yaml',
+        'sql',
+        'go',
+        'rust',
+        'java',
+        'kotlin',
+        'swift',
+        'dart',
+        'c',
+        'cpp',
+        'diff',
+        'shell',
       ],
     }),
   )
   return highlighterPromise
 }
 
-function extractCode(children: ReactNode): { code: string, lang: string | undefined } {
-  if (isValidElement<{ className?: string, children?: ReactNode }>(children)) {
+function extractCode(children: ReactNode): { code: string; lang: string | undefined } {
+  if (isValidElement<{ className?: string; children?: ReactNode }>(children)) {
     const className = children.props.className ?? ''
     const lang = /language-([\w-]+)/.exec(className)?.[1]
     const code = String(children.props.children ?? '').replace(/\n$/, '')
@@ -53,10 +74,8 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           themes: { light: 'github-light', dark: 'github-dark' },
           defaultColor: false,
         })
-        if (alive)
-          setHtml(out)
-      }
-      catch {
+        if (alive) setHtml(out)
+      } catch {
         // unsupported language or theme failure -> keep the plain pre
       }
     })()
@@ -65,12 +84,19 @@ function CodeBlock({ children }: { children?: ReactNode }) {
     }
   }, [code, lang])
 
-  if (html)
-    return <div dangerouslySetInnerHTML={{ __html: html }} />
-  return <pre><code>{code}</code></pre>
+  if (html) return <div dangerouslySetInnerHTML={{ __html: html }} />
+  return (
+    <pre>
+      <code>{code}</code>
+    </pre>
+  )
 }
 
-export default function MarkdownRenderer({ text, window, references }: {
+export default function MarkdownRenderer({
+  text,
+  window,
+  references,
+}: {
   text: string
   window: readonly WebResult[] | undefined
   references: readonly WebResult[]
@@ -85,7 +111,9 @@ export default function MarkdownRenderer({ text, window, references }: {
             sup: CitationSup,
             pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
             a: ({ href, children }) => (
-              <a href={href} target="_blank" rel="noreferrer">{children}</a>
+              <a href={href} target="_blank" rel="noreferrer">
+                {children}
+              </a>
             ),
           }}
         >
