@@ -262,11 +262,17 @@ function ToolBlock({ tool, payload }: { tool: string; payload?: unknown }) {
         <span className="truncate">{label}</span>
         {p.error && <span className="text-faint">· failed</span>}
       </button>
-      {open && p.output && (
+      {open && (
         <div className="mt-2 border-l border-line pl-4">
-          <pre className="max-h-96 max-w-full overflow-auto font-mono text-xs leading-5 whitespace-pre-wrap text-mid">
-            {p.output}
-          </pre>
+          {/* expanded shows the complete input line — the collapsed header stays truncated */}
+          <div className="font-mono text-xs leading-5 break-words whitespace-pre-wrap text-hi/80">
+            {p.title ?? tool}
+          </div>
+          {p.output && (
+            <pre className="mt-2 max-h-96 max-w-full overflow-auto font-mono text-xs leading-5 whitespace-pre-wrap text-mid">
+              {p.output}
+            </pre>
+          )}
           {p.truncated && p.originalChars !== undefined && (
             <div className="mt-1 font-mono text-[10px] text-faint select-none">
               truncated · original {fmtChars(p.originalChars)} chars

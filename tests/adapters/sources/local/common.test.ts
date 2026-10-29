@@ -51,15 +51,20 @@ describe('toolTitleFromInput', () => {
     expect(toolTitleFromInput({ file_path: '/a', command: 'ls -la' })).toBe('ls -la')
   })
 
-  it('falls through the key priority and truncates long values', () => {
-    expect(toolTitleFromInput({ pattern: `${'x'.repeat(70)}` })).toHaveLength(61)
+  it('falls through the key priority and keeps long values intact', () => {
+    // the payload keeps the full input — CSS truncates the collapsed line
+    expect(toolTitleFromInput({ pattern: `${'x'.repeat(70)}` })).toHaveLength(70)
     expect(toolTitleFromInput({ file_path: '/x/y.ts' })).toBe('/x/y.ts')
   })
 
   it('ignores blank strings and non-objects', () => {
     expect(toolTitleFromInput({ command: '   ' })).toBeUndefined()
-    expect(toolTitleFromInput('bash')).toBeUndefined()
     expect(toolTitleFromInput(null)).toBeUndefined()
+  })
+
+  it('accepts raw string inputs (codex apply_patch)', () => {
+    expect(toolTitleFromInput('bash')).toBe('bash')
+    expect(toolTitleFromInput('x'.repeat(5000))).toHaveLength(2000)
   })
 })
 
