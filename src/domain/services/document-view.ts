@@ -1,4 +1,4 @@
-import type { NodeId } from '../model/identity'
+import type { ModelId, NodeId } from '../model/identity'
 import type { MessageNode } from '../model/message-node'
 import type { WebResult } from '../model/part'
 import type { Trajectory } from '../model/trajectory'
@@ -25,6 +25,8 @@ export interface DocumentView {
   readonly references: readonly WebResult[]
   /** Citation resolution window per assistant node carrying text (this turn's searches, path order) */
   readonly citationWindows: ReadonlyMap<NodeId, readonly WebResult[]>
+  /** Distinct models across assistant blocks, first-appearance order (a tool may run on any model) */
+  readonly models: readonly ModelId[]
 }
 
 export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): DocumentView {
@@ -32,6 +34,8 @@ export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): Docu
   const blocks: DocBlock[] = []
   const references: WebResult[] = []
   const seenUrls = new Set<string>()
+  const seenModels = new Set<ModelId>()
+  const models: ModelId[] = []
   const citationWindows = new Map<NodeId, WebResult[]>()
 
   let window: WebResult[] = []
@@ -78,9 +82,20 @@ export function buildDocumentView(t: Trajectory, path?: readonly NodeId[]): Docu
         : null
     // rewrite depth is a user-node property; assistant blocks reset it
     blocks.push({ node, variant, latencyMs, chainIndex: node.role === 'user' ? chainIndex : 0 })
+
+    // a session's models are whatever answered, not what the tool brand suggests
+    if (
+      node.role === 'assistant' &&
+      node.model &&
+      !seenModels.has(node.model) &&
+      !/^<.+>$/.test(node.model)
+    ) {
+      seenModels.add(node.model)
+      models.push(node.model)
+    }
   }
 
-  return { blocks, references, citationWindows }
+  return { blocks, references, citationWindows, models }
 }
 
 export interface ResolvedCitation {

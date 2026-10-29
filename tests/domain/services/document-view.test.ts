@@ -112,6 +112,57 @@ describe('buildDocumentView', () => {
   })
 })
 
+describe('buildDocumentView models', () => {
+  it('collects distinct assistant models in first-appearance order', () => {
+    const t = makeTrajectory([
+      { id: 'u1', role: 'user', at: at(0), parent: null, parts: [text('q')] },
+      {
+        id: 'a1',
+        role: 'assistant',
+        at: at(1),
+        parent: 'u1',
+        model: 'claude-opus-5',
+        parts: [text('r1')],
+      },
+      {
+        id: 'a2',
+        role: 'assistant',
+        at: at(2),
+        parent: 'a1',
+        model: 'gemini-3.8-flash-n',
+        parts: [text('r2')],
+      },
+      {
+        id: 'a3',
+        role: 'assistant',
+        at: at(3),
+        parent: 'a2',
+        model: 'claude-opus-5',
+        parts: [text('r3')],
+      },
+      {
+        id: 'a4',
+        role: 'assistant',
+        at: at(4),
+        parent: 'a3',
+        model: '<synthetic>',
+        parts: [text('err')],
+      },
+      // user-node model is "what would answer", not what did — ignored
+      {
+        id: 'u2',
+        role: 'user',
+        at: at(5),
+        parent: 'a4',
+        model: 'claude-opus-5',
+        parts: [text('q2')],
+      },
+      { id: 'a5', role: 'assistant', at: at(6), parent: 'u2', model: null, parts: [text('r4')] },
+    ])
+    expect(buildDocumentView(t).models).toEqual(['claude-opus-5', 'gemini-3.8-flash-n'])
+  })
+})
+
 describe('resolveCitation', () => {
   const references = [
     { url: 'https://x/a', title: 'A' },

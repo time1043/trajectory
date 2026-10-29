@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
 
+import type { ModelId } from '@/domain/model/identity'
 import type { WebResult } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
 import type { DocBlock } from '@/domain/services/document-view'
@@ -31,6 +32,7 @@ function SessionDetail() {
       blocks={view.blocks}
       references={view.references}
       citationWindows={view.citationWindows}
+      models={view.models}
     />
   )
 }
@@ -40,9 +42,10 @@ interface ContentView {
   blocks: readonly DocBlock[]
   references: readonly WebResult[]
   citationWindows: ReadonlyMap<string, readonly WebResult[]>
+  models: readonly ModelId[]
 }
 
-function SessionContent({ trajectory, blocks, references, citationWindows }: ContentView) {
+function SessionContent({ trajectory, blocks, references, citationWindows, models }: ContentView) {
   const switched = useAtomValue(variantPathsAtom).has(trajectory.id)
   const sourceLabel = useAtomValue(sourceLabelsAtom).get(trajectory.sourceId) ?? trajectory.sourceId
   const userCount = blocks.filter((b) => b.node.role === 'user' && b.chainIndex === 0).length
@@ -62,6 +65,12 @@ function SessionContent({ trajectory, blocks, references, citationWindows }: Con
         <span className="text-faint">·</span>
         <ProviderDot sourceId={trajectory.sourceId} />
         <span>{sourceLabel}</span>
+        {models.length > 0 && (
+          <>
+            <span className="text-faint">·</span>
+            <span className="text-mid">{models.join(' + ')}</span>
+          </>
+        )}
       </div>
 
       <div className="mt-10 space-y-9">
