@@ -4,14 +4,15 @@ import { useMemo } from 'react'
 import type { Trajectory } from '@/domain/model/trajectory'
 
 import { applySessionFilters, type SessionSearch } from '@/app/stores/session-filter'
+import { sessionTagsAtom } from '@/app/stores/tags'
 
 import { allSourcesDataAtom } from './data'
 
 export type { SessionSearch }
 export {
-  parseSourcesParam,
+  parseListParam,
   sourceKey,
-  stringifySourcesParam,
+  stringifyListParam,
   toggleSource,
 } from '@/app/stores/session-filter'
 
@@ -21,6 +22,7 @@ export {
  */
 export function useSessionRows(search: SessionSearch) {
   const sources = useAtomValue(allSourcesDataAtom)
+  const tagsBySession = useAtomValue(sessionTagsAtom)
   const { q, from, to } = search
   return useMemo(() => {
     const items = sources.flatMap((s) =>
@@ -34,6 +36,12 @@ export function useSessionRows(search: SessionSearch) {
         for (const t of s.parsed.trajectories) trajectories.set(t.id, t)
       }
     }
-    return applySessionFilters(items, { q, sources: search.sources, from, to }, trajectories)
-  }, [sources, q, search.sources, from, to])
+    const tagMap = new Map(Object.entries(tagsBySession))
+    return applySessionFilters(
+      items,
+      { q, sources: search.sources, tags: search.tags, from, to },
+      trajectories,
+      tagMap,
+    )
+  }, [sources, tagsBySession, q, search.sources, search.tags, from, to])
 }

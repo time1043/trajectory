@@ -5,9 +5,9 @@ import type { Trajectory } from '@/domain/model/trajectory'
 
 import {
   applySessionFilters,
-  parseSourcesParam,
+  parseListParam,
   sourceKey,
-  stringifySourcesParam,
+  stringifyListParam,
   toggleSource,
 } from '@/app/stores/session-filter'
 
@@ -39,19 +39,19 @@ const zcode = row('zcode', 'oswin-m4a', 'z1', 'zcode session')
 describe('sources param serialization', () => {
   it('round-trips comma-joined keys', () => {
     const list = ['claude-code/oswin-m4a', 'deepseek/1665434994-qq']
-    expect(parseSourcesParam(stringifySourcesParam(list))).toEqual(list)
+    expect(parseListParam(stringifyListParam(list))).toEqual(list)
   })
 
   it('yields undefined for empty, absent and junk values', () => {
-    expect(parseSourcesParam(undefined)).toBeUndefined()
-    expect(parseSourcesParam('')).toBeUndefined()
-    expect(parseSourcesParam(',,')).toBeUndefined()
-    expect(stringifySourcesParam([])).toBeUndefined()
+    expect(parseListParam(undefined)).toBeUndefined()
+    expect(parseListParam('')).toBeUndefined()
+    expect(parseListParam(',,')).toBeUndefined()
+    expect(stringifyListParam([])).toBeUndefined()
   })
 
   it('tolerates repeated keys and arrays from hand-built urls', () => {
-    expect(parseSourcesParam(['a/b', 'c/d'])).toEqual(['a/b', 'c/d'])
-    expect(parseSourcesParam('a/b')).toEqual(['a/b'])
+    expect(parseListParam(['a/b', 'c/d'])).toEqual(['a/b', 'c/d'])
+    expect(parseListParam('a/b')).toEqual(['a/b'])
   })
 
   it('toggles without duplicates', () => {
@@ -117,5 +117,22 @@ describe('applySessionFilters', () => {
 
   it('keys sources by provider/user', () => {
     expect(sourceKey('claude-code', 'oswin-m4a')).toBe('claude-code/oswin-m4a')
+  })
+
+  it('narrows by tags with AND semantics', () => {
+    const tagsBySession = new Map([
+      [claude.id, ['react', 'ddd']],
+      [zcode.id, ['react']],
+    ])
+    expect(applySessionFilters(all, { tags: 'react' }, trajectories, tagsBySession)).toEqual([
+      claude,
+      zcode,
+    ])
+    expect(applySessionFilters(all, { tags: 'react,ddd' }, trajectories, tagsBySession)).toEqual([
+      claude,
+    ])
+    expect(applySessionFilters(all, { tags: 'nonexistent' }, trajectories, tagsBySession)).toEqual(
+      [],
+    )
   })
 })

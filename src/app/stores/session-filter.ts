@@ -17,6 +17,8 @@ export interface SessionSearch {
   q?: string
   /** Raw param: comma-joined source keys, 'provider/user,provider/user' */
   sources?: string
+  /** Raw param: comma-joined user tags; a session must carry ALL of them */
+  tags?: string
   from?: string
   to?: string
 }
@@ -29,7 +31,7 @@ export function sourceKey(provider: string, user: string): string {
 }
 
 /** Accepts the raw search-param value ('a/b,c/d', repeated keys, junk) */
-export function parseSourcesParam(value: unknown): string[] | undefined {
+export function parseListParam(value: unknown): string[] | undefined {
   const raw = Array.isArray(value) ? value.join(',') : value
   if (typeof raw !== 'string') return undefined
   const list = raw
@@ -40,8 +42,8 @@ export function parseSourcesParam(value: unknown): string[] | undefined {
 }
 
 /** Undefined when empty — the param disappears from the URL instead of 'sources=' */
-export function stringifySourcesParam(sources: string[] | undefined): string | undefined {
-  return sources?.length ? sources.join(',') : undefined
+export function stringifyListParam(list: string[] | undefined): string | undefined {
+  return list?.length ? list.join(',') : undefined
 }
 
 /** Sidebar-style toggle: add when absent, remove the specific one when present */
@@ -60,13 +62,23 @@ export function applySessionFilters(
   items: readonly FilterableRow[],
   search: SessionSearch,
   trajectories: ReadonlyMap<string, Trajectory>,
+  tagsBySession: ReadonlyMap<string, readonly string[]> = new Map(),
 ): TrajectoryRow[] {
   let result = items
 
-  const sourceKeys = parseSourcesParam(search.sources)
+  const sourceKeys = parseListParam(search.sources)
   if (sourceKeys?.length) {
     const keys = new Set(sourceKeys)
     result = result.filter((i) => keys.has(sourceKey(i.row.provider, i.row.user)))
+  }
+
+  // tags narrow (AND): every selected tag must be on the session
+  const selectedTags = parseListParam(search.tags)
+  if (selectedTags?.length) {
+    result = result.filter((i) => {
+      const tags = tagsBySession.get(i.row.id) ?? []
+      return selectedTags.every((t) => tags.includes(t))
+    })
   }
 
   const needle = search.q?.trim().toLowerCase()

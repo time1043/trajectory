@@ -7,9 +7,9 @@ import type { SessionSearch } from '@/app/stores/session-filter'
 import { sourceMetasAtom } from '@/app/stores/data'
 import { paletteOpenAtom } from '@/app/stores/palette'
 import {
-  parseSourcesParam,
+  parseListParam,
   sourceKey,
-  stringifySourcesParam,
+  stringifyListParam,
   toggleSource,
 } from '@/app/stores/session-filter'
 import { useSessionRows } from '@/app/stores/sessions'
@@ -21,6 +21,7 @@ export const Route = createFileRoute('/sessions')({
   validateSearch: (search: Record<string, unknown>): SessionSearch => ({
     q: typeof search.q === 'string' ? search.q : undefined,
     sources: typeof search.sources === 'string' ? search.sources : undefined,
+    tags: typeof search.tags === 'string' ? search.tags : undefined,
     from: typeof search.from === 'string' ? search.from : undefined,
     to: typeof search.to === 'string' ? search.to : undefined,
   }),
@@ -35,7 +36,7 @@ function SessionsLayout() {
   const paletteOpen = useAtomValue(paletteOpenAtom)
   const rows = useSessionRows(search)
   const sourceMetas = useAtomValue(sourceMetasAtom)
-  const activeSourceKeys = parseSourcesParam(search.sources) ?? []
+  const activeSourceKeys = parseListParam(search.sources) ?? []
   const [query, setQuery] = useState(search.q ?? '')
 
   // debounced input -> URL (the truth). Must use history.replace to keep the
@@ -46,13 +47,14 @@ function SessionsLayout() {
       const params = new URLSearchParams()
       if (query.trim()) params.set('q', query.trim())
       if (search.sources) params.set('sources', search.sources)
+      if (search.tags) params.set('tags', search.tags)
       if (search.from) params.set('from', search.from)
       if (search.to) params.set('to', search.to)
       const qs = params.toString()
       router.history.replace(`${window.location.pathname}${qs ? `?${qs}` : ''}`)
     }, 250)
     return () => clearTimeout(timer)
-  }, [query, search.sources, search.from, search.to, router])
+  }, [query, search.sources, search.tags, search.from, search.to, router])
 
   // external changes (heatmap jump, sidebar toggle) -> echo into the input;
   // render-phase adjust, no effect
@@ -66,7 +68,7 @@ function SessionsLayout() {
     void navigate({
       search: (prev: SessionSearch) => ({
         ...prev,
-        sources: stringifySourcesParam(toggleSource(parseSourcesParam(prev.sources), key)),
+        sources: stringifyListParam(toggleSource(parseListParam(prev.sources), key)),
       }),
     })
   }
@@ -97,7 +99,23 @@ function SessionsLayout() {
     return () => window.removeEventListener('keydown', handler)
   }, [rows, id, paletteOpen, navigate])
 
-  const filtering = !!(search.q || search.sources || search.from || search.to)
+  const activeTagList = parseListParam(search.tags) ?? []
+  const removeTag = (tag: string) => {
+    void navigate({
+      search: (prev: SessionSearch) => ({
+        ...prev,
+        tags: stringifyListParam((parseListParam(prev.tags) ?? []).filter((t) => t !== tag)),
+      }),
+    })
+  }
+
+  const filtering = !!(
+    search.q ||
+    search.sources ||
+    activeTagList.length ||
+    search.from ||
+    search.to
+  )
 
   return (
     <div className="flex h-screen">
@@ -140,7 +158,7 @@ function SessionsLayout() {
               </button>
             )}
           </div>
-          {activeSourceKeys.length > 0 && (
+          {(activeSourceKeys.length > 0 || activeTagList.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1">
               {activeSourceKeys.map((key) => {
                 const meta = sourceMetas.find((m) => m.ok && sourceKey(m.provider, m.user) === key)
@@ -156,6 +174,18 @@ function SessionsLayout() {
                   </button>
                 )
               })}
+              {activeTagList.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => removeTag(tag)}
+                  className="flex items-center gap-1 rounded-sm border border-line bg-accent-soft px-1.5 py-0.5 font-mono text-[11px] text-mid transition-colors duration-200 hover:text-hi"
+                  title="Remove tag filter"
+                >
+                  <span className="text-accent">#</span>
+                  {tag} ×
+                </button>
+              ))}
             </div>
           )}
         </div>
