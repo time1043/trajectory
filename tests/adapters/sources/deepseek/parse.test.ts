@@ -4,12 +4,13 @@ import type { RawConversation } from '@/adapters/sources/deepseek/types'
 import type { SourceManifest } from '@/domain/ports/data-host'
 
 import { parseDeepseek } from '@/adapters/sources/deepseek/parse'
+import { sourceIdentity } from '@/domain/ports/source-adapter'
 
 const manifest: SourceManifest = {
-  dirName: 'web/deepseek',
+  dirName: 'web/deepseek/1665434994-qq',
   files: [
-    { path: 'web/deepseek/conversations.json', size: 1, mtimeMs: 0 },
-    { path: 'web/deepseek/user.json', size: 1, mtimeMs: 0 },
+    { path: 'web/deepseek/1665434994-qq/conversations.json', size: 1, mtimeMs: 0 },
+    { path: 'web/deepseek/1665434994-qq/user.json', size: 1, mtimeMs: 0 },
   ],
 }
 
@@ -89,9 +90,10 @@ function parse() {
   return parseDeepseek(
     manifest,
     new Map([
-      ['web/deepseek/conversations.json', encode([conversation])],
-      ['web/deepseek/user.json', encode(user)],
+      ['web/deepseek/1665434994-qq/conversations.json', encode([conversation])],
+      ['web/deepseek/1665434994-qq/user.json', encode(user)],
     ]),
+    sourceIdentity(manifest, 'deepseek', 'DeepSeek'),
   )
 }
 
@@ -137,6 +139,8 @@ describe('parseDeepseek', () => {
 
   it('falls back to (untitled) and masks profile PII', () => {
     const source = parse()
+    expect(source.trajectories[0]?.id).toBe('deepseek:1665434994-qq:c1')
+    expect(source.label).toBe('DeepSeek · 1665434994-qq')
     expect(source.trajectories[0]?.title).toBe('(untitled)')
     expect(source.profile).toEqual({
       displayName: 'tester',
@@ -147,23 +151,27 @@ describe('parseDeepseek', () => {
   it('tolerates a missing or broken user.json', () => {
     const withoutUser = parseDeepseek(
       manifest,
-      new Map([['web/deepseek/conversations.json', encode([conversation])]]),
+      new Map([['web/deepseek/1665434994-qq/conversations.json', encode([conversation])]]),
+      sourceIdentity(manifest, 'deepseek', 'DeepSeek'),
     )
     expect(withoutUser.profile).toBeNull()
 
     const brokenUser = parseDeepseek(
       manifest,
       new Map([
-        ['web/deepseek/conversations.json', encode([conversation])],
-        ['web/deepseek/user.json', encode({ broken: true })],
+        ['web/deepseek/1665434994-qq/conversations.json', encode([conversation])],
+        ['web/deepseek/1665434994-qq/user.json', encode({ broken: true })],
       ]),
+      sourceIdentity(manifest, 'deepseek', 'DeepSeek'),
     )
     // a user record without the expected fields degrades instead of crashing the source
     expect(brokenUser.profile).toEqual({ displayName: 'unknown', identifiers: [] })
   })
 
   it('requires conversations.json in the manifest', () => {
-    const empty: SourceManifest = { dirName: 'web/deepseek', files: [] }
-    expect(() => parseDeepseek(empty, new Map())).toThrow(/conversations\.json/)
+    const empty: SourceManifest = { dirName: 'web/deepseek/1665434994-qq', files: [] }
+    expect(() =>
+      parseDeepseek(empty, new Map(), sourceIdentity(empty, 'deepseek', 'DeepSeek')),
+    ).toThrow(/conversations\.json/)
   })
 })

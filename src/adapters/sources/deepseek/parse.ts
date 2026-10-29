@@ -2,6 +2,7 @@ import type { MessageNode } from '@/domain/model/message-node'
 import type { Part, WebResult } from '@/domain/model/part'
 import type { PersonaProfile, ParsedSource, Trajectory } from '@/domain/model/trajectory'
 import type { SourceManifest } from '@/domain/ports/data-host'
+import type { SourceIdentity } from '@/domain/ports/source-adapter'
 
 import { trajectoryId } from '@/domain/model/identity'
 import { defaultActivePath } from '@/domain/services/turn-builder'
@@ -90,6 +91,7 @@ function buildProfile(raw: RawUser | undefined): PersonaProfile | null {
 export function parseDeepseek(
   manifest: SourceManifest,
   files: Map<string, ArrayBuffer>,
+  identity: SourceIdentity,
 ): ParsedSource {
   const conversationsPath = manifest.files.find((f) => f.path.endsWith(CONVERSATIONS_FILE))?.path
   const conversationsRaw = conversationsPath ? files.get(conversationsPath) : undefined
@@ -141,8 +143,8 @@ export function parseDeepseek(
       : toEpochMs(raw.inserted_at)
 
     trajectories.push({
-      id: trajectoryId('deepseek', raw.id),
-      sourceId: 'deepseek',
+      id: trajectoryId(identity.sourceId, raw.id),
+      sourceId: identity.sourceId,
       title: raw.title || '(untitled)',
       startedAt,
       updatedAt: toEpochMs(raw.updated_at),
@@ -152,8 +154,8 @@ export function parseDeepseek(
   }
 
   return {
-    sourceId: 'deepseek',
-    label: 'DeepSeek',
+    sourceId: identity.sourceId,
+    label: identity.label,
     profile,
     trajectories,
     diagnostics: { unknownPartCounts, invariantViolations },

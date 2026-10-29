@@ -5,7 +5,7 @@ import type { SourceManifest } from '@/domain/ports/data-host'
 import { piAdapter } from '@/adapters/sources/pi/adapter'
 
 const manifest: SourceManifest = {
-  dirName: 'local/pi',
+  dirName: 'local/pi/oswin-m4a',
   files: [
     {
       path: 'local/pi/sessions/--Users-x-proj--/2026-08-21T01-02-03-000Z_00000000-0000-4000-8000-000000000000.jsonl',
@@ -112,7 +112,7 @@ describe('pi adapter', () => {
     })
     expect(source.trajectories).toHaveLength(1)
     const trajectory = source.trajectories[0]!
-    expect(trajectory.id).toBe(`pi:${RAW_ID}`)
+    expect(trajectory.id).toBe(`pi:oswin-m4a:${RAW_ID}`)
     expect(trajectory.title).toBe('抽离 tray')
 
     const nodes = [...trajectory.nodes.values()]

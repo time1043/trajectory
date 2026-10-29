@@ -2,6 +2,8 @@ import type { ToolCallPayload } from '@/domain/model/part'
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { SourceAdapter } from '@/domain/ports/source-adapter'
 
+import { sourceIdentity } from '@/domain/ports/source-adapter'
+
 import { toolPart } from '../local/common'
 import { parseOpencodeFamily } from '../local/opencode-family'
 
@@ -17,11 +19,12 @@ export const opencodeAdapter: SourceAdapter = {
     return manifest.files.some((f) => f.path.endsWith('/opencode.db'))
   },
   async parse({ manifest, querySqlite }) {
+    const identity = sourceIdentity(manifest, 'opencode', 'OpenCode')
     const dbPath = manifest.files.find((f) => f.path.endsWith('/opencode.db'))!.path
     return parseOpencodeFamily({
       querySqlite,
-      sourceId: 'opencode',
-      label: 'OpenCode',
+      sourceId: identity.sourceId,
+      label: identity.label,
       dbPath,
       dialect: {
         sessionsSql:

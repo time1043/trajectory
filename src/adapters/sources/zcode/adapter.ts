@@ -1,6 +1,8 @@
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { SourceAdapter } from '@/domain/ports/source-adapter'
 
+import { sourceIdentity } from '@/domain/ports/source-adapter'
+
 import { parseOpencodeFamily } from '../local/opencode-family'
 
 /**
@@ -16,11 +18,12 @@ export const zcodeAdapter: SourceAdapter = {
     return manifest.files.some((f) => f.path.endsWith('/db.sqlite'))
   },
   async parse({ manifest, querySqlite }) {
+    const identity = sourceIdentity(manifest, 'zcode', 'ZCode')
     const dbPath = manifest.files.find((f) => f.path.endsWith('/db.sqlite'))!.path
     return parseOpencodeFamily({
       querySqlite,
-      sourceId: 'zcode',
-      label: 'ZCode',
+      sourceId: identity.sourceId,
+      label: identity.label,
       dbPath,
       dialect: {
         sessionsSql:

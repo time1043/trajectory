@@ -1,3 +1,4 @@
+import type { SourceId } from '../model/identity'
 import type { ParsedSource } from '../model/trajectory'
 import type { SourceFileEntry, SourceManifest, QuerySqlite } from './data-host'
 
@@ -23,4 +24,23 @@ export interface SourceParseInput {
   manifest: SourceManifest
   fetchFile(path: string): Promise<ArrayBuffer>
   querySqlite: QuerySqlite
+}
+
+/**
+ * Data layout is <group>/<provider>/<user>/<data...> — one manifest per user
+ * directory, and the identity carries both segments so multiple users of the
+ * same product never collide.
+ */
+export interface SourceIdentity {
+  readonly sourceId: SourceId
+  readonly label: string
+}
+
+export function sourceIdentity(
+  manifest: SourceManifest,
+  provider: string,
+  label: string,
+): SourceIdentity {
+  const user = manifest.dirName.split('/').pop() ?? manifest.dirName
+  return { sourceId: `${provider}:${user}`, label: `${label} · ${user}` }
 }

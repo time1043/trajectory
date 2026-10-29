@@ -76,51 +76,62 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       }
       if (!groupStat.isDirectory()) continue
 
-      let sources: string[] = []
+      // layout: <group>/<provider>/<user>/<data...>
+      let providers: string[] = []
       try {
-        sources = await fsp.readdir(groupPath)
+        providers = await fsp.readdir(groupPath)
       } catch {
         continue
       }
-      for (const source of sources.sort()) {
-        const sourcePath = path.join(groupPath, source)
-        let sourceStat: fs.Stats
+      for (const provider of providers.sort()) {
+        const providerPath = path.join(groupPath, provider)
+        let users: string[] = []
         try {
-          sourceStat = await fsp.stat(sourcePath)
+          users = await fsp.readdir(providerPath)
         } catch {
           continue
         }
-        if (!sourceStat.isDirectory()) continue
-
-        const files: SourceFileEntry[] = []
-        const walk = async (dir: string, prefix: string): Promise<void> => {
-          if (files.length >= MAX_SCAN_FILES) return
-          let entries: fs.Dirent[]
+        for (const user of users.sort()) {
+          const sourcePath = path.join(providerPath, user)
+          let sourceStat: fs.Stats
           try {
-            entries = await fsp.readdir(dir, { withFileTypes: true })
+            sourceStat = await fsp.stat(sourcePath)
           } catch {
-            return
+            continue
           }
-          for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-            const rel = `${prefix}${entry.name}`
-            const full = path.join(dir, entry.name)
-            if (entry.isDirectory()) {
-              await walk(full, `${rel}/`)
-            } else if (entry.isFile()) {
-              // transient sqlite sidecars and OS noise are not data
-              if (entry.name.startsWith('.') || /-wal$|-shm$/.test(entry.name)) continue
-              const fileStat = await fsp.stat(full)
-              files.push({
-                path: `${group}/${source}/${rel}`,
-                size: fileStat.size,
-                mtimeMs: fileStat.mtimeMs,
-              })
-            }
+          if (!sourceStat.isDirectory()) continue
+          const dirName = `${group}/${provider}/${user}`
+
+          const files: SourceFileEntry[] = []
+          const walk = async (dir: string, prefix: string): Promise<void> => {
             if (files.length >= MAX_SCAN_FILES) return
+            let entries: fs.Dirent[]
+            try {
+              entries = await fsp.readdir(dir, { withFileTypes: true })
+            } catch {
+              return
+            }
+            for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+              const rel = `${prefix}${entry.name}`
+              const full = path.join(dir, entry.name)
+              if (entry.isDirectory()) {
+                await walk(full, `${rel}/`)
+              } else if (entry.isFile()) {
+                // transient sqlite sidecars and OS noise are not data
+                if (entry.name.startsWith('.') || /-wal$|-shm$/.test(entry.name)) continue
+                const fileStat = await fsp.stat(full)
+                files.push({
+                  path: `${dirName}/${rel}`,
+                  size: fileStat.size,
+                  mtimeMs: fileStat.mtimeMs,
+                })
+              }
+              if (files.length >= MAX_SCAN_FILES) return
+            }
           }
+          await walk(sourcePath, '')
+          manifests.push({ dirName, files })
         }
-        await walk(sourcePath, '')
-        manifests.push({ dirName: `${group}/${source}`, files })
       }
     }
 

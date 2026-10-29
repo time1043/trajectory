@@ -18,9 +18,10 @@ pnpm dev
 ```
 
 Open the printed address (default http://localhost:5173). Data lives in
-`data/<group>/<source>/` — e.g. `web/deepseek/` (official export:
-`conversations.json` + `user.json`), `local/<tool>-<user>/` (coding-agent
-session logs; SQLite databases or JSONL trees depending on the tool).
+`data/<group>/<provider>/<user>/` — e.g. `web/deepseek/1665434994-qq/`
+(official export: `conversations.json` + `user.json`),
+`local/claude-code/oswin-m4a/` (coding-agent session logs; SQLite databases
+or JSONL trees depending on the tool). One user directory is one source.
 
 ## Architecture
 
@@ -66,7 +67,7 @@ src/
 
 ### Adding a source
 
-1. Drop the export into `data/<group>/<source>/`.
+1. Drop the export into `data/<group>/<provider>/<user>/`.
 2. Create `src/adapters/sources/<source>/` implementing `SourceAdapter`
    (`detect` claims the manifest, `parse` maps raw shapes to the domain —
    isomorphic pure functions, bytes via `fetchFile`, structured reads via

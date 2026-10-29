@@ -5,7 +5,7 @@ import type { SourceManifest } from '@/domain/ports/data-host'
 import { claudeAdapter } from '@/adapters/sources/claude/adapter'
 
 const manifest: SourceManifest = {
-  dirName: 'local/claude',
+  dirName: 'local/claude-code/oswin-m4a',
   files: [
     {
       path: 'local/claude/projects/-Users-x-proj/00000000-0000-4000-8000-000000000000.jsonl',

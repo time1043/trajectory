@@ -2,6 +2,8 @@ import type { Part, ToolCallPayload } from '@/domain/model/part'
 import type { SourceManifest } from '@/domain/ports/data-host'
 import type { SourceAdapter } from '@/domain/ports/source-adapter'
 
+import { sourceIdentity } from '@/domain/ports/source-adapter'
+
 import {
   fetchTexts,
   parseJsonl,
@@ -47,6 +49,7 @@ export const piAdapter: SourceAdapter = {
     return manifest.files.some((f) => SESSION_FILE.test(`/${f.path}`))
   },
   async parse({ manifest, fetchFile }) {
+    const identity = sourceIdentity(manifest, 'pi', 'Pi')
     const build: SourceBuild = { trajectories: [], unknownPartCounts: {} }
     const sessionFiles = manifest.files
       .filter((f) => SESSION_FILE.test(`/${f.path}`))
@@ -131,7 +134,7 @@ export const piAdapter: SourceAdapter = {
       }
 
       const trajectory = finishSession({
-        sourceId: 'pi',
+        sourceId: identity.sourceId,
         rawId,
         drafts,
         startedAt,
@@ -142,8 +145,8 @@ export const piAdapter: SourceAdapter = {
     }
 
     return {
-      sourceId: 'pi',
-      label: 'Pi',
+      sourceId: identity.sourceId,
+      label: identity.label,
       profile: null,
       trajectories: build.trajectories,
       diagnostics: { unknownPartCounts: build.unknownPartCounts, invariantViolations: [] },

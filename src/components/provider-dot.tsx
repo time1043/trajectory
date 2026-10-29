@@ -36,7 +36,7 @@ export function resolveProviderColor(sourceId: string): string {
   }
 
   // Match segmented path or compound names (e.g. "web/qwen-166543499...", "local/opencode-oswin-m4a")
-  const tokens = normalized.split(/[/_\s-]+/).filter(Boolean)
+  const tokens = normalized.split(/[/_:\s-]+/).filter(Boolean)
   for (const token of tokens) {
     if (PROVIDER_COLORS[token] && token !== 'local') {
       return PROVIDER_COLORS[token]

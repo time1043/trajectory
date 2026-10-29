@@ -6,12 +6,12 @@ import { opencodeAdapter } from '@/adapters/sources/opencode/adapter'
 import { zcodeAdapter } from '@/adapters/sources/zcode/adapter'
 
 const manifest: SourceManifest = {
-  dirName: 'local/test',
+  dirName: 'local/zcode/oswin-m4a',
   files: [{ path: 'local/test/db.sqlite', size: 1, mtimeMs: 0 }],
 }
 
 const opencodeManifest: SourceManifest = {
-  dirName: 'local/test-opencode',
+  dirName: 'local/opencode/oswin',
   files: [{ path: 'local/test-opencode/opencode.db', size: 1, mtimeMs: 0 }],
 }
 
@@ -157,12 +157,13 @@ describe('zcode adapter', () => {
       querySqlite: fakeQuerySqlite(zcodeTable),
     })
 
-    expect(source.sourceId).toBe('zcode')
-    expect(source.label).toBe('ZCode')
+    expect(source.sourceId).toBe('zcode:oswin-m4a')
+    expect(source.label).toBe('ZCode · oswin-m4a')
     // the subagent session is machinery and stays out of the list
     expect(source.trajectories).toHaveLength(1)
     const trajectory = source.trajectories[0]!
-    expect(trajectory.id).toBe('zcode:sess_1')
+    expect(trajectory.id).toBe('zcode:oswin-m4a:sess_1')
+    expect(source.label).toBe('ZCode · oswin-m4a')
 
     const nodes = [...trajectory.nodes.values()]
     expect(nodes.map((n) => n.id)).toEqual(['m1', 'm3'])

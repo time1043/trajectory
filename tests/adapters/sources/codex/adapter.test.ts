@@ -5,7 +5,7 @@ import type { SourceManifest } from '@/domain/ports/data-host'
 import { codexAdapter } from '@/adapters/sources/codex/adapter'
 
 const manifest: SourceManifest = {
-  dirName: 'local/codex',
+  dirName: 'local/codex/oswin-m4a',
   files: [
     {
       path: 'local/codex/sessions/2026/10/20/rollout-2026-10-20T10-00-00-00000000-0000-4000-8000-000000000000.jsonl',
@@ -122,7 +122,7 @@ describe('codex adapter', () => {
     const source = await parse()
     expect(source.trajectories).toHaveLength(1)
     const trajectory = source.trajectories[0]!
-    expect(trajectory.id).toBe('codex:00000000-0000-4000-8000-000000000000')
+    expect(trajectory.id).toBe('codex:oswin-m4a:00000000-0000-4000-8000-000000000000')
     expect(trajectory.title).toBe('fix the bug please')
 
     const nodes = [...trajectory.nodes.values()]
