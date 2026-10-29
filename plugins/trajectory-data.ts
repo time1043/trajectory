@@ -276,6 +276,10 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         let timer: ReturnType<typeof setTimeout> | null = null
         const notify = (filePath: string) => {
           if (!filePath.startsWith(realRoot)) return
+          // transient sqlite sidecars are written constantly by live agents — a
+          // read-only connection sees WAL data anyway, so they are not changes
+          const base = path.basename(filePath)
+          if (base.startsWith('.') || /-wal$|-shm$/.test(base)) return
           manifestCache = null
           for (const [key, db] of sqliteHandles) {
             if (filePath.startsWith(path.resolve(realRoot, key))) {

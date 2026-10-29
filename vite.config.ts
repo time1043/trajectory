@@ -9,6 +9,13 @@ import { trajectoryData } from './plugins/trajectory-data.ts'
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    // agent exports and live sqlite writes are not atomic — let chokidar wait
+    // for writes to settle before firing data-change events
+    watch: {
+      awaitWriteFinish: { stabilityThreshold: 250, pollInterval: 100 },
+    },
+  },
   plugins: [
     // Please make sure that '@tanstack/router-plugin' is passed before '@vitejs/plugin-react'
     tanstackRouter({
