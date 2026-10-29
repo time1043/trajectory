@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
+import { useMemo } from 'react'
 
 import { allRowsAtom } from '@/app/stores/data'
 import { growthOverviewAtom } from '@/app/stores/growth'
+import { allTagCountsAtom } from '@/app/stores/tags'
 import ActivityHeatmap from '@/components/activity-heatmap'
 import EmptyState from '@/components/empty-state'
 import HourDistribution from '@/components/hour-distribution'
@@ -49,6 +51,8 @@ function Dashboard() {
           />
         </div>
 
+        <TopTags />
+
         <section className="mt-12">
           <SectionTitle>Activity</SectionTitle>
           <div className="mt-5">
@@ -90,6 +94,37 @@ function Dashboard() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** The ten tags the user reaches for most — each links into the filtered list */
+function TopTags() {
+  const tagCounts = useAtomValue(allTagCountsAtom)
+  const navigate = useNavigate()
+  const top = useMemo(
+    () => [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10),
+    [tagCounts],
+  )
+  if (!top.length) return null
+  return (
+    <section className="mt-12">
+      <SectionTitle>Tags</SectionTitle>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {top.map(([tag, count]) => (
+          <button
+            key={tag}
+            type="button"
+            onClick={() => void navigate({ to: '/sessions', search: { tags: tag } })}
+            className="rounded-sm border border-line px-2 py-1 font-mono text-xs text-mid transition-colors duration-200 hover:text-hi"
+            title={`Sessions tagged ${tag}`}
+          >
+            <span className="text-accent">#</span>
+            {tag}
+            <span className="ml-1.5 text-faint">{count}</span>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 
