@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useAtomValue } from 'jotai'
+import { useMemo } from 'react'
 
 import type { WebResult } from '@/domain/model/part'
 import type { Trajectory } from '@/domain/model/trajectory'
@@ -9,6 +10,7 @@ import { sourcePartsAtom } from '@/app/stores/data'
 import { documentViewFamily, trajectoryByIdFamily, variantPathsAtom } from '@/app/stores/detail'
 import EmptyState from '@/components/empty-state'
 import { withSuspense } from '@/components/loading'
+import MiniToc, { type MiniTocEntry } from '@/components/mini-toc'
 import ProviderDot from '@/components/provider-dot'
 import { MessageBlock, ReferenceList } from '@/components/session-parts'
 import { trajectoryIdFromParts } from '@/domain/model/identity'
@@ -48,6 +50,20 @@ interface ContentView {
 
 function SessionContent({ trajectory, blocks, references, citationWindows, models }: ContentView) {
   const switched = useAtomValue(variantPathsAtom).has(trajectory.id)
+  // one entry per real user turn — the reading view's table of contents
+  const tocEntries = useMemo(() => {
+    const entries: MiniTocEntry[] = []
+    for (const block of blocks) {
+      if (block.node.role !== 'user' || block.chainIndex !== 0) continue
+      const text = block.node.parts.find((p) => p.kind === 'text')
+      entries.push({
+        id: `turn-${block.node.id}`,
+        label:
+          text && text.kind === 'text' ? text.text.split('\n')[0] : `turn ${entries.length + 1}`,
+      })
+    }
+    return entries
+  }, [blocks])
   // recognized sources always hit; raw segments are the fallback for safety
   const sourceParts = useAtomValue(sourcePartsAtom).get(trajectory.sourceId) ?? {
     providerLabel: trajectory.provider,
@@ -97,6 +113,7 @@ function SessionContent({ trajectory, blocks, references, citationWindows, model
       </div>
 
       {references.length > 0 && <ReferenceList references={references} />}
+      <MiniToc entries={tocEntries} />
     </div>
   )
 }

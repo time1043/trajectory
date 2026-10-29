@@ -7,6 +7,7 @@ import type { TrajectoryRow } from '@/app/derive'
 import { allRowsAtom } from '@/app/stores/data'
 import EmptyState from '@/components/empty-state'
 import { withSuspense } from '@/components/loading'
+import MiniToc from '@/components/mini-toc'
 import ProviderDot from '@/components/provider-dot'
 import { MONTH_SHORT, fmtDate, fmtInt } from '@/lib/format'
 
@@ -16,7 +17,6 @@ export const Route = createFileRoute('/timeline')({
 
 function Timeline() {
   const rows = useAtomValue(allRowsAtom)
-
   const years = useMemo(() => {
     // rows arrive updatedAt-desc; the timeline groups by startedAt to read as "how it happened"
     const sorted = [...rows].sort((a, b) => b.startedAt - a.startedAt)
@@ -29,6 +29,11 @@ function Timeline() {
     }
     return [...byYear.entries()]
   }, [rows])
+
+  const yearEntries = useMemo(
+    () => years.map(([year]) => ({ id: `timeline-year-${year}`, label: String(year) })),
+    [years],
+  )
 
   if (!rows.length) return <EmptyState />
 
@@ -48,12 +53,13 @@ function Timeline() {
 
         <div className="relative mt-10 border-l border-line pl-6">
           {years.map(([year, yearRows]) => (
-            <section key={year} className="pb-6">
+            <section key={year} id={`timeline-year-${year}`} className="scroll-mt-8 pb-6">
               <h2 className="slide-enter -ml-6 pt-2 text-3xl font-medium text-hi">{year}</h2>
               <MonthGroups rows={yearRows} />
             </section>
           ))}
         </div>
+        <MiniToc entries={yearEntries} minCount={2} />
       </div>
     </div>
   )

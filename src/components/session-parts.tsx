@@ -64,7 +64,7 @@ function UserBlock({
   const rewritten = chainIndex > 0
 
   return (
-    <div className="tr-lazy-block">
+    <div id={`turn-${node.id}`} className="tr-lazy-block scroll-mt-10">
       <div className="flex items-center gap-2.5">
         <BlockLabel role="YOU" node={node} />
         {rewritten && (
