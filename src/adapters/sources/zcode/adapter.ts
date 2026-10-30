@@ -15,6 +15,7 @@ export const zcodeAdapter: SourceAdapter = {
   id: 'zcode',
   label: 'ZCode',
   detect(manifest: SourceManifest): boolean {
+    if (!manifest.dirName.includes('zcode')) return false
     return manifest.files.some((f) => f.path.endsWith('/db.sqlite'))
   },
   async index({ manifest, querySqlite }) {

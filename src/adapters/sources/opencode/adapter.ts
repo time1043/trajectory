@@ -16,6 +16,7 @@ export const opencodeAdapter: SourceAdapter = {
   id: 'opencode',
   label: 'OpenCode',
   detect(manifest: SourceManifest): boolean {
+    if (!manifest.dirName.includes('opencode')) return false
     return manifest.files.some((f) => f.path.endsWith('/opencode.db'))
   },
   async index({ manifest, querySqlite }) {

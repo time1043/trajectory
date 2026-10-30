@@ -6,6 +6,8 @@ import { codexAdapter } from './codex/adapter'
 import { deepseekAdapter } from './deepseek/adapter'
 import { opencodeAdapter } from './opencode/adapter'
 import { piAdapter } from './pi/adapter'
+import { qwenAdapter } from './qwen/adapter'
+import { workbuddyAdapter } from './workbuddy/adapter'
 import { zcodeAdapter } from './zcode/adapter'
 
 export const sourceAdapters: readonly SourceAdapter[] = [
@@ -15,4 +17,6 @@ export const sourceAdapters: readonly SourceAdapter[] = [
   codexAdapter,
   piAdapter,
   claudeAdapter,
+  qwenAdapter,
+  workbuddyAdapter,
 ]

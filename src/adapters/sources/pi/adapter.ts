@@ -209,6 +209,7 @@ export const piAdapter: SourceAdapter = {
   id: 'pi',
   label: 'Pi',
   detect(manifest: SourceManifest): boolean {
+    if (!manifest.dirName.includes('pi')) return false
     return manifest.files.some((f) => SESSION_FILE.test(`/${f.path}`))
   },
   async index({ manifest, fetchFile }) {

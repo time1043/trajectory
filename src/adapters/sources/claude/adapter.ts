@@ -103,28 +103,24 @@ function assistantParts(
   return parts
 }
 
-/** First real user prompt (context injections excluded) — for summaries */
-function firstPromptOf(lines: readonly ClaudeLine[]): string {
-  for (const line of lines) {
-    if (line.type !== 'user' || !line.message) continue
-    const parts = userParts(line.message.content, new Map())
-    const text = parts.find((p) => p.kind === 'text')
-    if (text && text.kind === 'text') return text.text
-  }
-  return ''
-}
-
+/**
+ * Summary pass — must mirror buildDrafts' node-producing predicate exactly:
+ * messageCount counts lines that become nodes, and turnStarts are user NODE
+ * boundaries (buildTurns accounting). Pure tool-result lines and <synthetic>
+ * lines produce no node, so they neither count nor open a turn; skipped lines
+ * leave previousRole untouched so consecutive user nodes still merge.
+ */
 function buildSummariesFromLines(
   lines: readonly ClaudeLine[],
   rawId: string,
   identity: ReturnType<typeof sourceIdentity>,
-  messageCount: number,
 ): SessionSummary[] {
   let title = ''
   let firstPrompt = ''
   let startedAt = Number.POSITIVE_INFINITY
   let updatedAt = 0
   let previousRole: string | null = null
+  let messageCount = 0
   const turnStarts: number[] = []
 
   for (const line of lines) {
@@ -139,15 +135,23 @@ function buildSummariesFromLines(
       continue
     }
     if (line.type !== 'user' && line.type !== 'assistant') continue
-    const role = line.type
-    if (role === 'user') {
-      const prompt = firstPromptOf([line])
-      if (!firstPrompt && prompt) firstPrompt = prompt
+    const message = line.message
+    if (!message || message.model === '<synthetic>') continue
+
+    if (line.type === 'user') {
+      const parts = userParts(message.content, new Map())
+      if (!parts.length) continue // pure tool-result lines merge into their tool call
+      if (!firstPrompt) {
+        const text = parts.find((p) => p.kind === 'text')
+        if (text && text.kind === 'text') firstPrompt = text.text
+      }
       if (previousRole !== 'user') turnStarts.push(at)
       previousRole = 'user'
     } else {
+      if (!assistantParts(message, new Map()).length) continue
       previousRole = 'assistant'
     }
+    messageCount++
   }
 
   if (!turnStarts.length) return []
@@ -219,6 +223,7 @@ export const claudeAdapter: SourceAdapter = {
   id: 'claude-code',
   label: 'Claude Code',
   detect(manifest: SourceManifest): boolean {
+    if (!manifest.dirName.includes('claude-code')) return false
     return manifest.files.some((f) => SESSION_FILE.test(`/${f.path}`))
   },
   async index({ manifest, fetchFile }) {
@@ -235,8 +240,7 @@ export const claudeAdapter: SourceAdapter = {
         filePath.match(
           /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/,
         )?.[1] ?? filePath
-      const visibleLines = lines.filter((l) => l.type === 'user' || l.type === 'assistant').length
-      summaries.push(...buildSummariesFromLines(lines, rawId, identity, visibleLines))
+      summaries.push(...buildSummariesFromLines(lines, rawId, identity))
     }
 
     return {
