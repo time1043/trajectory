@@ -19,6 +19,7 @@ const SQLITE_SUFFIXES = new Set(['.sqlite', '.sqlite3', '.db'])
 
 // minimal structural typing so the plugin does not depend on @types/better-sqlite3 shapes
 interface SqliteDatabase {
+  readonly open: boolean
   prepare(sql: string): {
     all(...params: unknown[]): unknown[]
     run(...params: unknown[]): unknown
@@ -166,7 +167,11 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
 
     function sqliteFor(requested: string): SqliteDatabase {
       const cached = sqliteHandles.get(requested)
-      if (cached) return cached
+      // a closed handle can linger after dropHandlesFor raced with an in-flight query
+      if (cached) {
+        if (cached.open) return cached
+        sqliteHandles.delete(requested)
+      }
       const Database = getSqlite()
       if (!Database) throw new Error('better-sqlite3 is not installed')
       const resolved = path.resolve(root, requested)
