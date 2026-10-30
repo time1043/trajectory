@@ -181,6 +181,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
     }
 
     function dropHandlesFor(prefix: string): void {
+      manifestCache = { at: 0, value: null }
       for (const [key, db] of sqliteHandles) {
         if (key === prefix || key.startsWith(`${prefix}/`)) {
           db.close()
@@ -257,13 +258,21 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
 
         try {
           if (payload.publish) {
-            // mirror the schema once (tables then the rest), straight from the private db
+            // mirror the schema once (tables then the rest), straight from the private db;
+            // rewrite CREATE to CREATE IF NOT EXISTS so re-publishing doesn't collide
             const schema = privateDb
               .prepare(
                 "SELECT sql FROM sqlite_master WHERE sql NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END",
               )
               .all() as { sql: string }[]
-            for (const { sql } of schema) publicDb.exec(sql)
+            for (const { sql } of schema) {
+              publicDb.exec(
+                sql.replace(
+                  /^CREATE\s+(UNIQUE\s+INDEX|INDEX|TABLE|TRIGGER|VIEW)(\s+IF\s+NOT\s+EXISTS)?/i,
+                  'CREATE $1 IF NOT EXISTS',
+                ),
+              )
+            }
 
             const insert = (table: string, rows: Record<string, unknown>[]) => {
               for (const row of rows) {
@@ -294,12 +303,16 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
                 .all(payload.sessionId) as Record<string, unknown>[],
             )
           } else {
-            publicDb.prepare('DELETE FROM part WHERE session_id = ?').run(payload.sessionId)
-            publicDb.prepare('DELETE FROM message WHERE session_id = ?').run(payload.sessionId)
-            publicDb.prepare('DELETE FROM session WHERE id = ?').run(payload.sessionId)
+            const hasTable = publicDb
+              .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session'")
+              .get()
+            if (hasTable) {
+              publicDb.prepare('DELETE FROM part WHERE session_id = ?').run(payload.sessionId)
+              publicDb.prepare('DELETE FROM message WHERE session_id = ?').run(payload.sessionId)
+              publicDb.prepare('DELETE FROM session WHERE id = ?').run(payload.sessionId)
+            }
           }
         } finally {
-          privateDb.close()
           publicDb.close()
         }
       } else {
