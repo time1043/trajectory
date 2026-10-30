@@ -106,3 +106,45 @@ pnpm fmt      # oxfmt
 Stack: Vite 8 · React 19 (React Compiler) · TanStack Router (file routes) ·
 Jotai 3 · Tailwind CSS 4 · shiki (lazy dual-theme highlighting) ·
 react-markdown · better-sqlite3 (read-only, in the dev-server plugin).
+
+## 静态部署 (Static deployment)
+
+By default the app reads live data through the dev plugin's `/@api/*`
+endpoints. The same UI can also be built as a fully static site that serves a
+snapshot of the published sessions from `public/data/` — deployable to GitHub
+Pages or Cloudflare Pages with no backend.
+
+### Steps
+
+1. **Init the data dirs** — `./scripts/init-data-dir.sh` symlinks `data/`
+   (everything) and `data-public/` (what ships).
+2. **Choose the sessions to publish** — use the publish toggle on the reading
+   view (dev server copies each session into `data-public/`; sqlite sources
+   get a mirrored per-session db, jsonl sources a per-session file).
+3. **Build the static data** — `node scripts/build-public-data.mjs` converts
+   `data-public/` into `public/data/index.json` (summary array) plus
+   `public/data/sessions/<id>.json` (one raw body per session, both jsonl and
+   sqlite sources). `public/data/` is wiped on each run.
+4. **Build the app in static mode** — `VITE_DATA_MODE=static pnpm build`.
+   The build replaces `import.meta.env.VITE_DATA_MODE`, so the app fetches
+   `/data/index.json` and `/data/sessions/<id>.json` instead of `/@api/*`.
+   The owning adapter still parses each session body client-side.
+5. **Deploy `dist/`** to the static host.
+
+### Host notes
+
+- **GitHub Pages project site** (`<user>.github.io/<repo>/`) needs the
+  subpath baked in: `VITE_DATA_MODE=static pnpm build --base=/<repo>/`.
+  SPA deep links need a 404 fallback: `cp dist/index.html dist/404.html`.
+- **Cloudflare Pages**: point the build output at `dist/`; the bundled
+  `public/_redirects` (`/* /index.html 200`) already handles deep links.
+- Sanity-check locally with `pnpm preview` (serves `dist/`).
+
+### Limits
+
+- `VITE_DATA_MODE=static` in `.env` also affects `pnpm dev` — set it only in
+  the build command, or the dev server will read the prebuilt snapshot too.
+- DeepSeek (`conversations.json`, all sessions in one file) cannot be
+  published per-session by the dev plugin, so it is out of static scope;
+  directories without an adapter (e.g. `workbuddy`) appear as unrecognized,
+  exactly as in dev mode.

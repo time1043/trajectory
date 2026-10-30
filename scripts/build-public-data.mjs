@@ -5,17 +5,25 @@
  * a GitHub Pages / Cloudflare Pages deployment can serve without a backend.
  *
  * Usage:  node scripts/build-public-data.mjs
- * Output: public/data/index.json          (session summaries)
- *         public/data/sessions/<id>.json  (one per session, full trajectory)
+ * Output: public/data/index.json          (session summaries, all sources)
+ *         public/data/sessions/<id>.json  (one per session: the session's RAW
+ *         body — jsonl lines for file sources, the per-session sqlite rows for
+ *         zcode/opencode sources — re-parsed by the app's adapters in static
+ *         mode, see src/app/stores/static-data.ts)
+ *
+ * public/data/ is wiped on every run: a session unpublished since the last
+ * build must not linger in the output.
  *
  * Prerequisites: data-public/ must exist (scripts/init-data-dir.sh creates
- * the symlink) and contain only published sessions.
+ * the symlink) and contain only published sessions. The publish flow copies
+ * whole .jsonl files or mirrors sqlite rows per session, so every source the
+ * reading view can publish is covered here.
  */
 
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
-import path from 'node:path'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 
 const require = createRequire(import.meta.url)
 const Database = require('better-sqlite3')
@@ -86,46 +94,107 @@ async function scan(root) {
   return manifests
 }
 
+async function writeSessionBody(id, body) {
+  const bodyPath = path.join(SESSIONS_DIR, `${id}.json`)
+  await fsp.mkdir(path.dirname(bodyPath), { recursive: true })
+  await fsp.writeFile(bodyPath, JSON.stringify(body))
+}
+
+function columnNames(db, table) {
+  return new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => String(c.name)))
+}
+
+/**
+ * sqlite source (zcode / opencode — opencode-family schema): one summary plus
+ * one body file per session. The body stores exactly the rows the adapter's
+ * three per-session queries return; column availability decides the dialect
+ * (zcode has `sequence` ordering, opencode orders by time/id).
+ */
+async function emitSqliteSource(manifest, dbFile, summaries) {
+  const db = new Database(dbFile.fullPath, { readonly: true })
+  try {
+    const messageCols = columnNames(db, 'message')
+    if (!messageCols.has('id') || !messageCols.has('data')) {
+      throw new Error('message table lacks id/data — not an opencode-family schema')
+    }
+    const sequenced = messageCols.has('sequence')
+    const messageOrder = sequenced ? 'sequence, time_created' : 'time_created, id'
+    const partOrder = sequenced ? 'sequence' : 'time_created, id'
+    const partCols = columnNames(db, 'part')
+    const partSelect = [
+      'message_id',
+      ...(sequenced ? ['sequence'] : []),
+      ...(partCols.has('time_created') ? ['time_created'] : []),
+      'data',
+    ].join(', ')
+
+    const sessions = db
+      .prepare('SELECT id, title, time_created, time_updated FROM session ORDER BY time_updated DESC')
+      .all()
+    const messageStmt = db.prepare(
+      `SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY ${messageOrder}`,
+    )
+    const partStmt = db.prepare(
+      `SELECT ${partSelect} FROM part WHERE session_id = ? ORDER BY ${partOrder}`,
+    )
+    const turnStmt = db.prepare(
+      `SELECT m.time_created AS at FROM message m WHERE m.session_id = ? AND json_extract(m.data, '$.role') = 'user' ORDER BY m.time_created`,
+    )
+
+    for (const s of sessions) {
+      const turnRows = turnStmt.all(s.id)
+      const id = `${manifest.provider}:${manifest.user}:${s.id}`
+      summaries.push({
+        id,
+        sessionId: s.id,
+        provider: manifest.provider,
+        user: manifest.user,
+        title: s.title,
+        startedAt: s.time_created,
+        updatedAt: s.time_updated,
+        turnStarts: turnRows.map((r) => r.at),
+        messageCount: turnRows.length,
+        firstPrompt: '',
+      })
+      // the raw per-session rows; the app's adapter re-parses them in static mode
+      await writeSessionBody(id, {
+        id: s.id,
+        session: [s],
+        messages: messageStmt.all(s.id),
+        parts: partStmt.all(s.id),
+      })
+    }
+  } finally {
+    db.close()
+  }
+}
+
 async function main() {
   console.log('[build-public-data] scanning data-public/...')
   const manifests = await scan(ROOT)
   const summaries = []
 
+  await fsp.rm(OUT_DIR, { recursive: true, force: true })
+  await fsp.mkdir(SESSIONS_DIR, { recursive: true })
+
   for (const manifest of manifests) {
     const dbFile = manifest.files.find((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))
 
     if (dbFile) {
-      // sqlite source: query sessions + turn times via json_extract
-      const db = new Database(dbFile.fullPath, { readonly: true })
-      const sessions = db
-        .prepare('SELECT id, title, time_created, time_updated FROM session ORDER BY time_updated DESC')
-        .all()
-      for (const s of sessions) {
-        const turnRows = db
-          .prepare(
-            `SELECT m.time_created AS at FROM message m WHERE m.session_id = ? AND json_extract(m.data, '$.role') = 'user' ORDER BY m.time_created`,
-          )
-          .all(s.id)
-        summaries.push({
-          id: `${manifest.provider}:${manifest.user}:${s.id}`,
-          sessionId: s.id,
-          provider: manifest.provider,
-          user: manifest.user,
-          title: s.title,
-          startedAt: s.time_created,
-          updatedAt: s.time_updated,
-          turnStarts: turnRows.map((r) => r.at),
-          messageCount: turnRows.length,
-          firstPrompt: '',
-        })
+      try {
+        await emitSqliteSource(manifest, dbFile, summaries)
+      } catch (error) {
+        console.warn(`[build-public-data] skipping ${manifest.dirName}: ${error.message}`)
       }
-      db.close()
     } else {
       // jsonl source: parse each file, build a summary + body
       for (const file of manifest.files) {
         if (!file.path.endsWith('.jsonl')) continue
         const text = await fsp.readFile(file.fullPath, 'utf8')
-        const lines = text.split('\n').filter(Boolean).map((l) => JSON.parse(l))
+        const lines = text
+          .split('\n')
+          .filter(Boolean)
+          .map((l) => JSON.parse(l))
         const sessionId = file.path.match(/([0-9a-f-]{36})\.jsonl$/)?.[1] ?? file.path
         const timestamps = lines.filter((l) => l.timestamp).map((l) => Date.parse(l.timestamp))
         const userLines = lines.filter((l) => l.type === 'user' || l.message?.role === 'user')
@@ -144,8 +213,9 @@ async function main() {
             })
             .find((t) => t.trim()) ?? ''
 
+        const id = `${manifest.provider}:${manifest.user}:${sessionId}`
         summaries.push({
-          id: `${manifest.provider}:${manifest.user}:${sessionId}`,
+          id,
           sessionId,
           provider: manifest.provider,
           user: manifest.user,
@@ -158,19 +228,15 @@ async function main() {
         })
 
         // write the full body
-        const bodyPath = path.join(SESSIONS_DIR, `${manifest.provider}:${manifest.user}:${sessionId}.json`)
-        await fsp.mkdir(path.dirname(bodyPath), { recursive: true })
-        await fsp.writeFile(bodyPath, JSON.stringify({ id: sessionId, lines }))
+        await writeSessionBody(id, { id: sessionId, lines })
       }
     }
   }
 
-  await fsp.mkdir(SESSIONS_DIR, { recursive: true })
-  await fsp.writeFile(
-    path.join(OUT_DIR, 'index.json'),
-    JSON.stringify(summaries),
+  await fsp.writeFile(path.join(OUT_DIR, 'index.json'), JSON.stringify(summaries))
+  console.log(
+    `[build-public-data] wrote ${summaries.length} session summaries to public/data/index.json`,
   )
-  console.log(`[build-public-data] wrote ${summaries.length} session summaries to public/data/index.json`)
 }
 
 main()
