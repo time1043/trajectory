@@ -5,8 +5,8 @@ import { publishedIdsAtom, setPublishedAtom } from '@/app/stores/publish'
 
 /**
  * Publish/unpublish one session. Published sessions are copied under
- * data-public/ — the dataset a static deployment serves. The state lives in
- * the public dataset itself (presence = published).
+ * data-public/ — the dataset a static deployment serves. Dev-only: the
+ * public view has no concept of publishing.
  */
 export default function PublishToggle({
   provider,
@@ -21,10 +21,9 @@ export default function PublishToggle({
   const setPublished = useSetAtom(setPublishedAtom)
   const [pending, setPending] = useState(false)
 
-  const published = publishedIds.has(
-    // the ':'-joined internal id never appears in a URL
-    `${provider}:${user}:${sessionId}`,
-  )
+  if (!import.meta.env.DEV) return null
+
+  const published = publishedIds.has(`${provider}:${user}:${sessionId}`)
 
   const onClick = async () => {
     setPending(true)
@@ -43,13 +42,8 @@ export default function PublishToggle({
       className={`rounded-sm border px-1.5 py-0.5 font-mono text-[11px] transition-colors duration-200 disabled:opacity-50 ${
         published
           ? 'border-accent bg-accent-soft text-mid hover:text-hi'
-          : 'border-line text-faint hover:text-mid'
-      }`}
-      title={
-        published
-          ? 'Published — click to unpublish'
-          : 'Copy this session into data-public for static deployment'
-      }
+          : 'border-line text-faint hover:text-mid'}`}
+      title={published ? 'Published — click to unpublish' : 'Copy this session into data-public for static deployment'}
     >
       {pending ? '…' : published ? 'published' : 'publish'}
     </button>
