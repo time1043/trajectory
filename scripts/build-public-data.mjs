@@ -176,6 +176,104 @@ async function emitSqliteSource(manifest, dbFile, summaries) {
   }
 }
 
+async function emitDeepseekSource(manifest, convFile, userFile, summaries) {
+  const text = await fsp.readFile(convFile.fullPath, 'utf8')
+  const convs = JSON.parse(text)
+  let userObj = undefined
+  if (userFile) {
+    try {
+      userObj = JSON.parse(await fsp.readFile(userFile.fullPath, 'utf8'))
+    } catch {
+      // ignore
+    }
+  }
+
+  for (const raw of convs) {
+    if (!raw?.id || !raw.mapping) continue
+    const nodes = new Map()
+    for (const [nodeId, rawNode] of Object.entries(raw.mapping)) {
+      if (!rawNode.message || nodeId === 'root') continue
+      const frags = rawNode.message.fragments || []
+      const isUser = frags.some((f) => f.type === 'REQUEST' || f.type === 'FILE')
+      const at = Date.parse(rawNode.message.inserted_at) || 0
+      const firstText = frags.find((f) => f.type === 'REQUEST')?.content || ''
+      nodes.set(nodeId, {
+        id: nodeId,
+        parentId: rawNode.parent === 'root' ? null : rawNode.parent,
+        childIds: [...(rawNode.children || [])],
+        role: isUser ? 'user' : 'assistant',
+        at,
+        firstText,
+      })
+    }
+
+    const turnStarts = []
+    let previousRole = null
+    let firstPrompt = ''
+    for (const node of nodes.values()) {
+      if (node.role === 'user') {
+        if (previousRole !== 'user') turnStarts.push(node.at)
+        if (!firstPrompt && node.firstText) firstPrompt = node.firstText
+      }
+      previousRole = node.role
+    }
+
+    const startedAt = Date.parse(raw.inserted_at) || 0
+    const updatedAt = Date.parse(raw.updated_at) || 0
+    const id = `${manifest.provider}:${manifest.user}:${raw.id}`
+    summaries.push({
+      id,
+      sessionId: raw.id,
+      provider: manifest.provider,
+      user: manifest.user,
+      title: raw.title || '(untitled)',
+      startedAt,
+      updatedAt,
+      turnStarts,
+      messageCount: nodes.size,
+      firstPrompt,
+    })
+    await writeSessionBody(id, { id: raw.id, conversation: raw, user: userObj })
+  }
+}
+
+async function emitQwenSource(manifest, qwenFile, summaries) {
+  const text = await fsp.readFile(qwenFile.fullPath, 'utf8')
+  const parsed = JSON.parse(text)
+  const convos = parsed.data || []
+  for (const convo of convos) {
+    if (!convo?.id) continue
+    const messages = convo.chat?.history?.messages || {}
+    const turnStarts = []
+    let previousRole = null
+    let firstPrompt = ''
+    let messageCount = 0
+    for (const msg of Object.values(messages)) {
+      const at = (msg.timestamp || 0) * 1000
+      if (msg.role === 'user') {
+        if (previousRole !== 'user') turnStarts.push(at)
+        if (!firstPrompt && msg.content) firstPrompt = msg.content
+      }
+      messageCount++
+      previousRole = msg.role
+    }
+    const id = `${manifest.provider}:${manifest.user}:${convo.id}`
+    summaries.push({
+      id,
+      sessionId: convo.id,
+      provider: manifest.provider,
+      user: manifest.user,
+      title: convo.title || '(untitled)',
+      startedAt: (convo.created_at || 0) * 1000,
+      updatedAt: (convo.updated_at || 0) * 1000,
+      turnStarts,
+      messageCount,
+      firstPrompt,
+    })
+    await writeSessionBody(id, { id: convo.id, conversation: convo })
+  }
+}
+
 async function main() {
   console.log('[build-public-data] scanning data-public/...')
   const manifests = await scan(ROOT)
@@ -186,10 +284,25 @@ async function main() {
 
   for (const manifest of manifests) {
     const dbFile = manifest.files.find((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))
+    const convFile = manifest.files.find((f) => f.path.endsWith('conversations.json'))
+    const qwenFile = manifest.files.find((f) => /chat-export-\d+\.json$/.test(f.path))
 
     if (dbFile) {
       try {
         await emitSqliteSource(manifest, dbFile, summaries)
+      } catch (error) {
+        console.warn(`[build-public-data] skipping ${manifest.dirName}: ${error.message}`)
+      }
+    } else if (convFile) {
+      const userFile = manifest.files.find((f) => f.path.endsWith('user.json'))
+      try {
+        await emitDeepseekSource(manifest, convFile, userFile, summaries)
+      } catch (error) {
+        console.warn(`[build-public-data] skipping ${manifest.dirName}: ${error.message}`)
+      }
+    } else if (qwenFile) {
+      try {
+        await emitQwenSource(manifest, qwenFile, summaries)
       } catch (error) {
         console.warn(`[build-public-data] skipping ${manifest.dirName}: ${error.message}`)
       }

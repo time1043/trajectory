@@ -225,6 +225,8 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       for (const m of manifests) {
         const [, provider, user] = m.dirName.split('/')
         const dbFile = m.files.find((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))
+        const convFile = m.files.find((f) => f.path.endsWith('conversations.json'))
+        const qwenFile = m.files.find((f) => /chat-export-\d+\.json$/.test(f.path))
         const sessionIds: string[] = []
         if (dbFile) {
           try {
@@ -237,6 +239,30 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
             sessionIds.push(...rows.map((r) => String(r.id)))
           } catch {
             // an unreadable public db publishes nothing
+          }
+        } else if (convFile) {
+          try {
+            const raw = await fsp.readFile(path.join(publicRoot, convFile.path), 'utf-8')
+            const convs = JSON.parse(raw) as { id?: string }[]
+            if (Array.isArray(convs)) {
+              for (const c of convs) {
+                if (c?.id) sessionIds.push(String(c.id))
+              }
+            }
+          } catch {
+            // an unreadable file publishes nothing
+          }
+        } else if (qwenFile) {
+          try {
+            const raw = await fsp.readFile(path.join(publicRoot, qwenFile.path), 'utf-8')
+            const parsed = JSON.parse(raw) as { data?: { id?: string }[] }
+            if (Array.isArray(parsed?.data)) {
+              for (const c of parsed.data) {
+                if (c?.id) sessionIds.push(String(c.id))
+              }
+            }
+          } catch {
+            // an unreadable file publishes nothing
           }
         } else {
           for (const f of m.files) {
@@ -267,6 +293,9 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       await fsp.mkdir(publicSourceDir, { recursive: true })
 
       const dbFile = manifest.files.find((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))
+      const convFile = manifest.files.find((f) => f.path.endsWith('conversations.json'))
+      const qwenFile = manifest.files.find((f) => /chat-export-\d+\.json$/.test(f.path))
+
       if (dbFile) {
         // sqlite sources: copy the session's rows into a mirrored public db
         const publicDbPath = path.join(publicRoot, dbFile.path)
@@ -333,6 +362,95 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
           }
         } finally {
           publicDb.close()
+        }
+      } else if (convFile) {
+        // DeepSeek single-file multi-session export: mirror session in conversations.json under publicRoot
+        const privateConvPath = path.resolve(privateCtx.root, convFile.path)
+        const publicConvPath = path.join(publicRoot, convFile.path)
+        const privateRaw = await fsp.readFile(privateConvPath, 'utf-8')
+        const privateConvs = JSON.parse(privateRaw) as { id: string }[]
+        const targetConv = privateConvs.find((c) => c.id === payload.sessionId)
+        if (payload.publish && !targetConv) {
+          throw new Error(`session not found in conversations.json: ${payload.sessionId}`)
+        }
+
+        let publicConvs: { id: string }[] = []
+        try {
+          const publicRaw = await fsp.readFile(publicConvPath, 'utf-8')
+          const parsed = JSON.parse(publicRaw) as { id: string }[]
+          if (Array.isArray(parsed)) publicConvs = parsed
+        } catch {
+          publicConvs = []
+        }
+
+        if (payload.publish) {
+          const existingIdx = publicConvs.findIndex((c) => c.id === payload.sessionId)
+          if (existingIdx >= 0) {
+            publicConvs[existingIdx] = targetConv!
+          } else {
+            publicConvs.push(targetConv!)
+          }
+          await fsp.mkdir(path.dirname(publicConvPath), { recursive: true })
+          await fsp.writeFile(publicConvPath, JSON.stringify(publicConvs, null, 2), 'utf-8')
+
+          const userFile = manifest.files.find((f) => f.path.endsWith('user.json'))
+          if (userFile) {
+            const privateUserPath = path.resolve(privateCtx.root, userFile.path)
+            const publicUserPath = path.join(publicRoot, userFile.path)
+            try {
+              await fsp.copyFile(privateUserPath, publicUserPath)
+            } catch {
+              // ignore
+            }
+          }
+        } else {
+          publicConvs = publicConvs.filter((c) => c.id !== payload.sessionId)
+          if (publicConvs.length > 0) {
+            await fsp.writeFile(publicConvPath, JSON.stringify(publicConvs, null, 2), 'utf-8')
+          } else {
+            await fsp.rm(publicConvPath, { force: true })
+            const userFile = manifest.files.find((f) => f.path.endsWith('user.json'))
+            if (userFile) {
+              await fsp.rm(path.join(publicRoot, userFile.path), { force: true })
+            }
+          }
+        }
+      } else if (qwenFile) {
+        // Qwen single-file multi-session export: mirror session in chat-export-*.json under publicRoot
+        const privateQwenPath = path.resolve(privateCtx.root, qwenFile.path)
+        const publicQwenPath = path.join(publicRoot, qwenFile.path)
+        const privateRaw = await fsp.readFile(privateQwenPath, 'utf-8')
+        const privateData = JSON.parse(privateRaw) as { data?: { id: string }[] }
+        const targetConvo = privateData.data?.find((c) => c.id === payload.sessionId)
+        if (payload.publish && !targetConvo) {
+          throw new Error(`session not found in qwen export: ${payload.sessionId}`)
+        }
+
+        let publicData: { data: { id: string }[] } = { data: [] }
+        try {
+          const publicRaw = await fsp.readFile(publicQwenPath, 'utf-8')
+          const parsed = JSON.parse(publicRaw) as { data?: { id: string }[] }
+          if (Array.isArray(parsed?.data)) publicData = { data: parsed.data }
+        } catch {
+          publicData = { data: [] }
+        }
+
+        if (payload.publish) {
+          const existingIdx = publicData.data.findIndex((c) => c.id === payload.sessionId)
+          if (existingIdx >= 0) {
+            publicData.data[existingIdx] = targetConvo!
+          } else {
+            publicData.data.push(targetConvo!)
+          }
+          await fsp.mkdir(path.dirname(publicQwenPath), { recursive: true })
+          await fsp.writeFile(publicQwenPath, JSON.stringify(publicData, null, 2), 'utf-8')
+        } else {
+          publicData.data = publicData.data.filter((c) => c.id !== payload.sessionId)
+          if (publicData.data.length > 0) {
+            await fsp.writeFile(publicQwenPath, JSON.stringify(publicData, null, 2), 'utf-8')
+          } else {
+            await fsp.rm(publicQwenPath, { force: true })
+          }
         }
       } else {
         // jsonl sources: one file per session, the BASE name carries the id
@@ -526,32 +644,25 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
             await writeTags(ctx.root, currentTags)
 
             // If a session was updated and is currently published in publicCtx, sync public tags
-            if (publicCtx) {
+            if (publicCtx && publishedList) {
+              const published = (await publishedList()) as {
+                provider: string
+                user: string
+                sessionIds: string[]
+              }[]
+              const pubTags = await readTags(publicCtx.root)
+
               if (touchedId) {
                 const [pProvider, pUser, ...rest] = touchedId.split(':')
                 const pSessionId = rest.join(':')
-                const pubManifests = await publicCtx.scan()
-                const isPublished = pubManifests.some((m) => {
-                  const [, prov, usr] = m.dirName.split('/')
-                  if (prov !== pProvider || usr !== pUser) return false
-                  const isSqlite = m.files.some((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))
-                  if (isSqlite) {
-                    try {
-                      const dbFile = m.files.find((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))!
-                      const row = publicCtx
-                        .sqliteFor(dbFile.path)
-                        .prepare('SELECT 1 FROM session WHERE id = ?')
-                        .get(pSessionId)
-                      return Boolean(row)
-                    } catch {
-                      return false
-                    }
-                  }
-                  return m.files.some((f) => path.basename(f.path).includes(pSessionId))
-                })
+                const isPublished = published.some(
+                  (p) =>
+                    p.provider === pProvider &&
+                    p.user === pUser &&
+                    p.sessionIds.includes(pSessionId),
+                )
 
                 if (isPublished) {
-                  const pubTags = await readTags(publicCtx.root)
                   if (currentTags[touchedId]?.length) {
                     pubTags[touchedId] = currentTags[touchedId]
                   } else {
@@ -559,13 +670,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
                   }
                   await writeTags(publicCtx.root, pubTags)
                 }
-              } else if (publishedList) {
-                const published = (await publishedList()) as {
-                  provider: string
-                  user: string
-                  sessionIds: string[]
-                }[]
-                const pubTags = await readTags(publicCtx.root)
+              } else {
                 let changed = false
                 for (const entry of published) {
                   for (const sId of entry.sessionIds) {

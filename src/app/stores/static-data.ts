@@ -6,8 +6,10 @@ import type { SessionSummary, SourceAdapter, SourceIndex } from '@/domain/ports/
 import { createRegexSanitizer } from '@/adapters/sanitize/regex-sanitizer'
 import { claudeAdapter } from '@/adapters/sources/claude/adapter'
 import { codexAdapter } from '@/adapters/sources/codex/adapter'
+import { deepseekAdapter } from '@/adapters/sources/deepseek/adapter'
 import { opencodeAdapter } from '@/adapters/sources/opencode/adapter'
 import { piAdapter } from '@/adapters/sources/pi/adapter'
+import { qwenAdapter } from '@/adapters/sources/qwen/adapter'
 import { workbuddyAdapter } from '@/adapters/sources/workbuddy/adapter'
 import { zcodeAdapter } from '@/adapters/sources/zcode/adapter'
 import { deriveSource } from '@/app/derive'
@@ -43,6 +45,7 @@ export interface StaticSummary {
  * - jsonl sources (claude-code / codex / pi): the session file's lines
  * - sqlite sources (zcode / opencode): exactly the rows the adapter's three
  *   per-session queries return (session row, message rows, part rows)
+ * - multi-session json sources (deepseek / qwen): the single conversation object
  */
 export interface StaticSessionBody {
   readonly id?: string
@@ -50,6 +53,8 @@ export interface StaticSessionBody {
   readonly session?: Record<string, unknown>[]
   readonly messages?: Record<string, unknown>[]
   readonly parts?: Record<string, unknown>[]
+  readonly conversation?: unknown
+  readonly user?: unknown
 }
 
 export interface StaticSourceGroup {
@@ -64,17 +69,14 @@ export interface StaticSourceGroup {
  * source layout equals the adapter's provider string ('local/claude-code/…'
  * -> 'claude-code'). Directories without an entry here surface as
  * 'unrecognized' sources — same as the dev server shows them.
- *
- * Single-file multi-session sources (deepseek's conversations.json, qwen's
- * chat-export-*.json) are absent on purpose: the publish flow cannot copy
- * one of their sessions into data-public/, so they never reach a static
- * build.
  */
 const ADAPTER_BY_PROVIDER: Readonly<Record<string, SourceAdapter>> = {
   'claude-code': claudeAdapter,
   codex: codexAdapter,
+  deepseek: deepseekAdapter,
   opencode: opencodeAdapter,
   pi: piAdapter,
+  qwen: qwenAdapter,
   workbuddy: workbuddyAdapter,
   zcode: zcodeAdapter,
 }
@@ -220,6 +222,36 @@ async function loadJsonlStaticBody(
   )
 }
 
+async function loadSingleConversationStaticBody(
+  adapter: SourceAdapter,
+  body: StaticSessionBody,
+  manifest: SourceManifest,
+  sessionId: string,
+): Promise<Trajectory | null> {
+  return adapter.loadSession(
+    {
+      manifest,
+      fetchFile: async (filePath) => {
+        if (filePath.endsWith('conversations.json')) {
+          const raw = JSON.stringify([body.conversation])
+          return new TextEncoder().encode(raw).buffer as ArrayBuffer
+        }
+        if (filePath.endsWith('user.json') && body.user) {
+          const raw = JSON.stringify(body.user)
+          return new TextEncoder().encode(raw).buffer as ArrayBuffer
+        }
+        if (/chat-export-\d+\.json$/.test(filePath)) {
+          const raw = JSON.stringify({ data: [body.conversation] })
+          return new TextEncoder().encode(raw).buffer as ArrayBuffer
+        }
+        return new ArrayBuffer(0)
+      },
+      querySqlite: unreachableQuerySqlite,
+    },
+    sessionId,
+  )
+}
+
 async function loadSqliteStaticBody(
   adapter: SourceAdapter,
   body: StaticSessionBody,
@@ -264,13 +296,21 @@ export async function loadStaticSessionBody(id: TrajectoryId): Promise<Trajector
       { path: `${dirName}/${sessionId}.jsonl`, size: 0, mtimeMs: 0 },
       { path: `${dirName}/db.sqlite`, size: 0, mtimeMs: 0 },
       { path: `${dirName}/opencode.db`, size: 0, mtimeMs: 0 },
+      { path: `${dirName}/conversations.json`, size: 0, mtimeMs: 0 },
+      { path: `${dirName}/user.json`, size: 0, mtimeMs: 0 },
+      { path: `${dirName}/chat-export-0.json`, size: 0, mtimeMs: 0 },
     ],
   }
 
   try {
-    const raw = Array.isArray(body.lines)
-      ? await loadJsonlStaticBody(adapter, body, manifest, sessionId)
-      : await loadSqliteStaticBody(adapter, body, manifest, sessionId)
+    let raw: Trajectory | null
+    if (body.conversation) {
+      raw = await loadSingleConversationStaticBody(adapter, body, manifest, sessionId)
+    } else if (Array.isArray(body.lines)) {
+      raw = await loadJsonlStaticBody(adapter, body, manifest, sessionId)
+    } else {
+      raw = await loadSqliteStaticBody(adapter, body, manifest, sessionId)
+    }
     if (!raw) return null
     return deepFreeze(sanitizer.sanitizeSession(raw))
   } catch (error) {
