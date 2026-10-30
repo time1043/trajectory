@@ -499,21 +499,27 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       // ---- watch -> HMR ----
       server.watcher.add(ctx.root)
       let timer: ReturnType<typeof setTimeout> | null = null
+      // dirNames touched since the last send — one event per debounce window
+      const pendingDirNames = new Set<string>()
       const notify = (filePath: string) => {
         if (!filePath.startsWith(ctx.root)) return
         // transient sqlite sidecars are written constantly by live agents — a
         // read-only connection sees WAL data anyway, so they are not changes
         const base = path.basename(filePath)
         if (base.startsWith('.') || /-wal$|-shm$/.test(base)) return
-        ctx.dropHandlesFor(
-          path.relative(ctx.root, filePath).split(path.sep).slice(0, 3).join(path.sep),
-        )
+        // a source is the first three segments under the root: <group>/<provider>/<user>
+        const dirName = path.relative(ctx.root, filePath).split(path.sep).slice(0, 3).join(path.sep)
+        ctx.dropHandlesFor(dirName)
+        pendingDirNames.add(dirName)
         if (timer) clearTimeout(timer)
         timer = setTimeout(() => {
+          timer = null
+          const dirNames = [...pendingDirNames]
+          pendingDirNames.clear()
           server.ws.send({
             type: 'custom',
             event: DATA_API_HMR_EVENT,
-            data: { path: path.relative(ctx.root, filePath) },
+            data: { dirNames },
           })
         }, 500)
       }

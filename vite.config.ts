@@ -10,6 +10,11 @@ import { trajectoryData } from './plugins/trajectory-data.ts'
 // https://vite.dev/config/
 export default defineConfig({
   server: {
+    // pre-transform the hot paths during startup idle time so the babel
+    // react-compiler pass does not land on the first request
+    warmup: {
+      clientFiles: ['./src/main.tsx', './src/routes/**', './src/components/**', './src/app/**'],
+    },
     // agent exports and live sqlite writes are not atomic — let chokidar wait
     // for writes to settle before firing data-change events
     watch: {

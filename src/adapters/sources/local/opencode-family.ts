@@ -5,6 +5,7 @@ import type { SourceIdentity, SourceIndex, SessionSummary } from '@/domain/ports
 
 import {
   buildTrajectory,
+  titleFromPrompt,
   toolPart,
   toolTitleFromInput,
   truncatedOutput,
@@ -189,15 +190,26 @@ export async function loadOpencodeFamilySession(opts: {
 
   let title = String(session.title ?? '')
   if (dialect.normalizeTitle) title = dialect.normalizeTitle(title)
+  // match the index pass: "New session - <ISO>" and empty titles fall back to
+  // the first real user prompt — the reading view renders trajectory.title
+  // (routes/sessions.$source.$user.$session.tsx) and must not disagree with
+  // the session list
+  const firstPrompt = firstUserPrompt(drafts)
 
   return buildTrajectory({
     identity,
     rawId: opts.sessionId,
-    title: title || '(untitled)',
+    title: title || titleFromPrompt(firstPrompt),
     startedAt: Number(session.time_created),
     updatedAt: Number(session.time_updated),
     drafts,
   })
+}
+
+/** First visible user text among the drafts (synthetic text parts already dropped) */
+function firstUserPrompt(drafts: readonly NodeDraft[]): string {
+  const part = drafts.find((d) => d.role === 'user')?.parts.find((p) => p.kind === 'text')
+  return part?.kind === 'text' ? part.text : ''
 }
 
 function mapPart(pd: Record<string, unknown>, dialect: OpencodeFamilyDialect): Part | null {
