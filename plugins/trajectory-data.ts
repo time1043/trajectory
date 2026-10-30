@@ -539,7 +539,8 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
 
     configurePreviewServer(server: PreviewServer) {
       const ctx = preview!
-      server.middlewares.use(makeApiMiddleware(ctx, null))
+      // in preview the ctx IS the public dataset — publishedList derives from it
+      server.middlewares.use(makeApiMiddleware(ctx, ctx))
 
       void ctx.scan().then((manifests) => {
         const list = manifests.map((m) => `  · ${m.dirName} (${m.files.length} files)`).join('\n')
