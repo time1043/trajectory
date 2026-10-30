@@ -6,9 +6,9 @@ import type { SessionSummary, SourceAdapter, SourceIndex } from '@/domain/ports/
 import { createRegexSanitizer } from '@/adapters/sanitize/regex-sanitizer'
 import { claudeAdapter } from '@/adapters/sources/claude/adapter'
 import { codexAdapter } from '@/adapters/sources/codex/adapter'
-import { deepseekAdapter } from '@/adapters/sources/deepseek/adapter'
 import { opencodeAdapter } from '@/adapters/sources/opencode/adapter'
 import { piAdapter } from '@/adapters/sources/pi/adapter'
+import { workbuddyAdapter } from '@/adapters/sources/workbuddy/adapter'
 import { zcodeAdapter } from '@/adapters/sources/zcode/adapter'
 import { deriveSource } from '@/app/derive'
 
@@ -62,15 +62,20 @@ export interface StaticSourceGroup {
 /**
  * The static index carries the provider DIRECTORY segment, which for every
  * source layout equals the adapter's provider string ('local/claude-code/…'
- * -> 'claude-code'). Directories without an adapter (workbuddy, qwen) map to
- * no entry and surface as 'unrecognized' sources — same as the dev server.
+ * -> 'claude-code'). Directories without an entry here surface as
+ * 'unrecognized' sources — same as the dev server shows them.
+ *
+ * Single-file multi-session sources (deepseek's conversations.json, qwen's
+ * chat-export-*.json) are absent on purpose: the publish flow cannot copy
+ * one of their sessions into data-public/, so they never reach a static
+ * build.
  */
 const ADAPTER_BY_PROVIDER: Readonly<Record<string, SourceAdapter>> = {
   'claude-code': claudeAdapter,
   codex: codexAdapter,
-  deepseek: deepseekAdapter,
   opencode: opencodeAdapter,
   pi: piAdapter,
+  workbuddy: workbuddyAdapter,
   zcode: zcodeAdapter,
 }
 

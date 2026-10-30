@@ -144,7 +144,6 @@ Pages or Cloudflare Pages with no backend.
 
 - `VITE_DATA_MODE=static` in `.env` also affects `pnpm dev` — set it only in
   the build command, or the dev server will read the prebuilt snapshot too.
-- DeepSeek (`conversations.json`, all sessions in one file) cannot be
-  published per-session by the dev plugin, so it is out of static scope;
-  directories without an adapter (e.g. `workbuddy`) appear as unrecognized,
-  exactly as in dev mode.
+- DeepSeek (`conversations.json`) and Qwen (`chat-export-*.json`) keep all
+  sessions in one file, which the dev plugin cannot publish per-session —
+  both are out of static scope.
