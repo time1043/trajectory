@@ -197,6 +197,25 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
   let dev: RootContext | null = null
   let preview: RootContext | null = null
 
+  async function readTags(dir: string): Promise<Record<string, string[]>> {
+    const filePath = path.join(dir, 'tags.json')
+    try {
+      const raw = await fsp.readFile(filePath, 'utf-8')
+      const parsed = JSON.parse(raw) as unknown
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, string[]>)
+        : {}
+    } catch {
+      return {}
+    }
+  }
+
+  async function writeTags(dir: string, tags: Record<string, string[]>): Promise<void> {
+    const filePath = path.join(dir, 'tags.json')
+    await fsp.mkdir(dir, { recursive: true })
+    await fsp.writeFile(filePath, JSON.stringify(tags, null, 2) + '\n', 'utf-8')
+  }
+
   /** One published session = one normalized body file + the shared index. */
   function publishEndpoints(privateCtx: RootContext, publicCtx: RootContext) {
     const publicRoot = publicCtx.root
@@ -329,6 +348,21 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         }
       }
 
+      // sync tags for this session between data/tags.json and data-public/tags.json
+      const trajectoryId = `${payload.provider}:${payload.user}:${payload.sessionId}`
+      const privateTags = await readTags(privateCtx.root)
+      const publicTags = await readTags(publicRoot)
+      if (payload.publish) {
+        if (privateTags[trajectoryId]?.length) {
+          publicTags[trajectoryId] = privateTags[trajectoryId]
+        } else {
+          delete publicTags[trajectoryId]
+        }
+      } else {
+        delete publicTags[trajectoryId]
+      }
+      await writeTags(publicRoot, publicTags)
+
       publicCtx.dropHandlesFor(manifest.dirName)
       return { ok: true, published: payload.publish, list: await publishedList() }
     }
@@ -336,7 +370,11 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
     return { publishedList, publishOne }
   }
 
-  function makeApiMiddleware(ctx: RootContext, publicCtx: RootContext | null) {
+  function makeApiMiddleware(
+    ctx: RootContext,
+    publicCtx: RootContext | null,
+    allowMutations = true,
+  ) {
     const { publishedList, publishOne } = publicCtx
       ? publishEndpoints(ctx, publicCtx)
       : { publishedList: null, publishOne: null }
@@ -438,6 +476,125 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         return
       }
 
+      if (url.pathname === '/@api/tags') {
+        if (req.method === 'GET') {
+          const tags = await readTags(ctx.root)
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify(tags))
+          return
+        }
+
+        if (req.method === 'POST') {
+          if (!allowMutations) {
+            res.statusCode = 403
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ error: 'tags editing is disabled in preview' }))
+            return
+          }
+          try {
+            const body = JSON.parse(await readBody(req)) as {
+              trajectoryId?: string
+              tags?: string[]
+              allTags?: Record<string, string[]>
+            }
+            const currentTags = await readTags(ctx.root)
+            let touchedId: string | null = null
+            if (body.trajectoryId && Array.isArray(body.tags)) {
+              touchedId = body.trajectoryId
+              if (body.tags.length > 0) {
+                currentTags[body.trajectoryId] = body.tags
+              } else {
+                delete currentTags[body.trajectoryId]
+              }
+            } else if (body.allTags && typeof body.allTags === 'object') {
+              for (const [id, t] of Object.entries(body.allTags)) {
+                if (Array.isArray(t) && t.length > 0) {
+                  currentTags[id] = t
+                } else {
+                  delete currentTags[id]
+                }
+              }
+            } else if (typeof body === 'object' && !body.trajectoryId) {
+              for (const [id, t] of Object.entries(body)) {
+                if (Array.isArray(t) && t.length > 0) {
+                  currentTags[id] = t
+                } else {
+                  delete currentTags[id]
+                }
+              }
+            }
+            await writeTags(ctx.root, currentTags)
+
+            // If a session was updated and is currently published in publicCtx, sync public tags
+            if (publicCtx) {
+              if (touchedId) {
+                const [pProvider, pUser, ...rest] = touchedId.split(':')
+                const pSessionId = rest.join(':')
+                const pubManifests = await publicCtx.scan()
+                const isPublished = pubManifests.some((m) => {
+                  const [, prov, usr] = m.dirName.split('/')
+                  if (prov !== pProvider || usr !== pUser) return false
+                  const isSqlite = m.files.some((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))
+                  if (isSqlite) {
+                    try {
+                      const dbFile = m.files.find((f) => SQLITE_SUFFIXES.has(path.extname(f.path)))!
+                      const row = publicCtx
+                        .sqliteFor(dbFile.path)
+                        .prepare('SELECT 1 FROM session WHERE id = ?')
+                        .get(pSessionId)
+                      return Boolean(row)
+                    } catch {
+                      return false
+                    }
+                  }
+                  return m.files.some((f) => path.basename(f.path).includes(pSessionId))
+                })
+
+                if (isPublished) {
+                  const pubTags = await readTags(publicCtx.root)
+                  if (currentTags[touchedId]?.length) {
+                    pubTags[touchedId] = currentTags[touchedId]
+                  } else {
+                    delete pubTags[touchedId]
+                  }
+                  await writeTags(publicCtx.root, pubTags)
+                }
+              } else if (publishedList) {
+                const published = (await publishedList()) as {
+                  provider: string
+                  user: string
+                  sessionIds: string[]
+                }[]
+                const pubTags = await readTags(publicCtx.root)
+                let changed = false
+                for (const entry of published) {
+                  for (const sId of entry.sessionIds) {
+                    const id = `${entry.provider}:${entry.user}:${sId}`
+                    if (currentTags[id]?.length) {
+                      if (JSON.stringify(pubTags[id]) !== JSON.stringify(currentTags[id])) {
+                        pubTags[id] = currentTags[id]
+                        changed = true
+                      }
+                    } else if (pubTags[id]) {
+                      delete pubTags[id]
+                      changed = true
+                    }
+                  }
+                }
+                if (changed) await writeTags(publicCtx.root, pubTags)
+              }
+            }
+
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(currentTags))
+          } catch (error) {
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: String(error) }))
+          }
+          return
+        }
+      }
+
       if (url.pathname === '/@api/published' && publishedList) {
         try {
           res.setHeader('Content-Type', 'application/json')
@@ -449,7 +606,13 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
         return
       }
 
-      if (url.pathname === '/@api/publish' && req.method === 'POST' && publishOne) {
+      if (url.pathname === '/@api/publish' && req.method === 'POST') {
+        if (!allowMutations || !publishOne) {
+          res.statusCode = 403
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ error: 'publishing is disabled in preview' }))
+          return
+        }
         try {
           const body = JSON.parse(await readBody(req)) as {
             provider?: string
@@ -522,9 +685,10 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       const notify = (filePath: string) => {
         if (!filePath.startsWith(ctx.root)) return
         // transient sqlite sidecars are written constantly by live agents — a
-        // read-only connection sees WAL data anyway, so they are not changes
+        // read-only connection sees WAL data anyway, so they are not changes;
+        // tags.json is managed by its own endpoints and store invalidation
         const base = path.basename(filePath)
-        if (base.startsWith('.') || /-wal$|-shm$/.test(base)) return
+        if (base.startsWith('.') || base === 'tags.json' || /-wal$|-shm$/.test(base)) return
         // a source is the first three segments under the root: <group>/<provider>/<user>
         const dirName = path.relative(ctx.root, filePath).split(path.sep).slice(0, 3).join(path.sep)
         ctx.dropHandlesFor(dirName)
@@ -545,7 +709,7 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
       server.watcher.on('add', notify)
       server.watcher.on('unlink', notify)
 
-      server.middlewares.use(makeApiMiddleware(ctx, pub))
+      server.middlewares.use(makeApiMiddleware(ctx, pub, true))
 
       // startup log
       void ctx.scan().then((manifests) => {
@@ -557,8 +721,9 @@ export function trajectoryData(opts: { dataDir?: string } = {}): Plugin {
 
     configurePreviewServer(server: PreviewServer) {
       const ctx = preview!
-      // in preview the ctx IS the public dataset — publishedList derives from it
-      server.middlewares.use(makeApiMiddleware(ctx, ctx))
+      // in preview the ctx IS the public dataset — publishedList derives from it,
+      // but mutations (publishing / tag editing) are disabled
+      server.middlewares.use(makeApiMiddleware(ctx, ctx, false))
 
       void ctx.scan().then((manifests) => {
         const list = manifests.map((m) => `  · ${m.dirName} (${m.files.length} files)`).join('\n')

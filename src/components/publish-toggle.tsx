@@ -42,8 +42,13 @@ export default function PublishToggle({
       className={`rounded-sm border px-1.5 py-0.5 font-mono text-[11px] transition-colors duration-200 disabled:opacity-50 ${
         published
           ? 'border-accent bg-accent-soft text-mid hover:text-hi'
-          : 'border-line text-faint hover:text-mid'}`}
-      title={published ? 'Published — click to unpublish' : 'Copy this session into data-public for static deployment'}
+          : 'border-line text-faint hover:text-mid'
+      }`}
+      title={
+        published
+          ? 'Published — click to unpublish'
+          : 'Copy this session into data-public for static deployment'
+      }
     >
       {pending ? '…' : published ? 'published' : 'publish'}
     </button>

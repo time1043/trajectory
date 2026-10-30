@@ -1,6 +1,6 @@
-import type { QuerySqlite, SourceManifest, SqliteQueryResult } from '@/domain/ports/data-host'
 import type { TrajectoryId } from '@/domain/model/identity'
 import type { Trajectory } from '@/domain/model/trajectory'
+import type { QuerySqlite, SourceManifest, SqliteQueryResult } from '@/domain/ports/data-host'
 import type { SessionSummary, SourceAdapter, SourceIndex } from '@/domain/ports/source-adapter'
 
 import { createRegexSanitizer } from '@/adapters/sanitize/regex-sanitizer'
@@ -191,13 +191,15 @@ async function unreachableQuerySqlite(): Promise<SqliteQueryResult> {
  * db (opencode-family schema); the static body pre-answers them. Dispatch on
  * the FROM table — the id/session_id filters are already baked into the body.
  */
-const staticQuerySqlite = (body: StaticSessionBody): QuerySqlite => async (_path, sql) => {
-  const lowered = sql.toLowerCase()
-  if (lowered.includes('from message')) return { rows: body.messages ?? [] }
-  if (lowered.includes('from part')) return { rows: body.parts ?? [] }
-  if (lowered.includes('from session')) return { rows: body.session ?? [] }
-  throw new Error(`[trajectory] static mode: unsupported sqlite query: ${sql.slice(0, 100)}`)
-}
+const staticQuerySqlite =
+  (body: StaticSessionBody): QuerySqlite =>
+  async (_path, sql) => {
+    const lowered = sql.toLowerCase()
+    if (lowered.includes('from message')) return { rows: body.messages ?? [] }
+    if (lowered.includes('from part')) return { rows: body.parts ?? [] }
+    if (lowered.includes('from session')) return { rows: body.session ?? [] }
+    throw new Error(`[trajectory] static mode: unsupported sqlite query: ${sql.slice(0, 100)}`)
+  }
 
 /** jsonl body: re-serialize the stored lines, served through a synthetic fetchFile */
 async function loadJsonlStaticBody(
@@ -209,7 +211,11 @@ async function loadJsonlStaticBody(
   const text = (body.lines ?? []).map((line) => JSON.stringify(line)).join('\n')
   const bytes = new TextEncoder().encode(text)
   return adapter.loadSession(
-    { manifest, fetchFile: async () => bytes.buffer as ArrayBuffer, querySqlite: unreachableQuerySqlite },
+    {
+      manifest,
+      fetchFile: async () => bytes.buffer as ArrayBuffer,
+      querySqlite: unreachableQuerySqlite,
+    },
     sessionId,
   )
 }

@@ -10,7 +10,12 @@ import { deriveSource } from '@/app/derive'
 import { detectAdapter, ingestIndex } from '@/app/ingest'
 import { atomFamily } from '@/lib/atom-family'
 
-import { buildStaticSourceResult, STATIC_DATA_MODE, staticManifest, staticSourceGroups } from './static-data'
+import {
+  buildStaticSourceResult,
+  STATIC_DATA_MODE,
+  staticManifest,
+  staticSourceGroups,
+} from './static-data'
 
 /** Bumped on HMR / manual refresh; downstream async atoms refetch automatically */
 export const dataVersionAtom = atom(0)

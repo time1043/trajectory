@@ -101,7 +101,12 @@ async function writeSessionBody(id, body) {
 }
 
 function columnNames(db, table) {
-  return new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => String(c.name)))
+  return new Set(
+    db
+      .prepare(`PRAGMA table_info(${table})`)
+      .all()
+      .map((c) => String(c.name)),
+  )
 }
 
 /**
@@ -129,7 +134,9 @@ async function emitSqliteSource(manifest, dbFile, summaries) {
     ].join(', ')
 
     const sessions = db
-      .prepare('SELECT id, title, time_created, time_updated FROM session ORDER BY time_updated DESC')
+      .prepare(
+        'SELECT id, title, time_created, time_updated FROM session ORDER BY time_updated DESC',
+      )
       .all()
     const messageStmt = db.prepare(
       `SELECT id, time_created, data FROM message WHERE session_id = ? ORDER BY ${messageOrder}`,
@@ -237,6 +244,19 @@ async function main() {
   console.log(
     `[build-public-data] wrote ${summaries.length} session summaries to public/data/index.json`,
   )
+
+  const publicTagsFile = path.join(ROOT, 'tags.json')
+  const outTagsFile = path.join(OUT_DIR, 'tags.json')
+  try {
+    if (fs.existsSync(publicTagsFile)) {
+      await fsp.copyFile(publicTagsFile, outTagsFile)
+      console.log('[build-public-data] copied tags.json to public/data/tags.json')
+    } else {
+      await fsp.writeFile(outTagsFile, '{}\n', 'utf8')
+    }
+  } catch (error) {
+    console.warn('[build-public-data] failed to copy tags.json:', error.message)
+  }
 }
 
 main()

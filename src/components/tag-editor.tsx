@@ -7,7 +7,8 @@ import { allTagCountsAtom, sessionTagsAtom } from '@/app/stores/tags'
  * Inline tag editor for one session: chips with remove buttons plus a
  * type-ahead input fed by every tag the user has ever used (most used first).
  * `t` focuses it from anywhere on the page; Enter adds and keeps typing;
- * Esc closes. Persisted via sessionTagsAtom (localStorage).
+ * Esc closes. Persisted under data/tags.json via sessionTagsAtom.
+ * Dev-only: in preview/production builds, tags render read-only.
  */
 export default function TagEditor({
   trajectoryId,
@@ -20,12 +21,14 @@ export default function TagEditor({
   const tagCounts = useAtomValue(allTagCountsAtom)
   const tags = tagsBySession[trajectoryId] ?? []
 
+  const isDev = import.meta.env.DEV
+
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!shortcut) return
+    if (!shortcut || !isDev) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 't' || e.metaKey || e.ctrlKey || e.altKey) return
       const target = e.target as HTMLElement
@@ -36,11 +39,28 @@ export default function TagEditor({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [shortcut])
+  }, [shortcut, isDev])
 
   useEffect(() => {
-    if (editing) requestAnimationFrame(() => inputRef.current?.focus())
-  }, [editing])
+    if (editing && isDev) requestAnimationFrame(() => inputRef.current?.focus())
+  }, [editing, isDev])
+
+  if (!isDev) {
+    if (!tags.length) return null
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="flex items-center gap-1 rounded-sm border border-line bg-accent-soft px-1.5 py-0.5 font-mono text-[11px] text-mid"
+          >
+            <span className="text-accent">#</span>
+            {tag}
+          </span>
+        ))}
+      </div>
+    )
+  }
 
   const commit = (raw: string) => {
     const tag = raw.trim().toLowerCase().replace(/,/g, '')
